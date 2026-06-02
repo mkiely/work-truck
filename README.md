@@ -98,17 +98,3 @@ src/
 2. Register it in `src/registry.ts`.
 
 The three routes are backend-agnostic, so nothing else changes.
-
-## Status & roadmap
-
-**Done (handoff steps 1–3):** scaffold + contract codegen; JIRA connector against
-offline fixtures with unit-tested mapping; all 3 routes + CORS; verified end-to-end
-shape.
-
-**Next (handoff steps 4–6 / §9):**
-
-- Live JIRA Cloud fetch (`src/lib/http.ts`), token auth from env, `zod` validation of
-  responses, a real `validate()` auth probe.
-- Secrets handling (env → OS keychain).
-- Additional connectors (HTTP or CLI-backed) for other work-item systems.
-- Later: bidirectional push, caching/rate limits, multiple instances per connector.
