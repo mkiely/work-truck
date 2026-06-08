@@ -1,59 +1,97 @@
-// AcmeConnector — example CLI-backed connector. Use this as a starting point for any
-// backend that exposes a CLI with JSON output.
+// AcmeConnector — the reference DEV backend for live-testing a consumer frontend.
 //
-// STATUS: stub. It compiles and works against fixtures today. To finish it:
-//   1. Make fixtures.ts mirror your CLI's real JSON output.
-//   2. Adjust mapping.ts (field reads + coerceStatus) to your tool's vocabulary.
-//   3. Fill in the real `runJson(...)` call below (the command + args).
-//   4. Set the configFields the app's create-form should collect.
-//   5. Enable it: run the service with ENABLE_ACME=1 (see registry.ts), or register
-//      unconditionally once you're confident.
+// Unlike a real connector (which fetches from a CLI or REST API), Acme is self-contained:
+// it owns an in-process "warehouse" (warehouse.ts) seeded with fixture data. Sync reads
+// the warehouse; push and createItem MUTATE it; the next sync reflects the change — so
+// the frontend gets genuine bidirectional behavior with no external system. The warehouse
+// re-seeds when the service restarts (in-memory).
 //
-// See CONNECTORS.md for the full checklist.
+// All of Acme's domain knowledge lives in this folder. The service core (server,
+// registry, lib) stays contract-driven and backend-agnostic.
 
-import type { Connector } from '../types.js';
+import type { Connector, CreateItemInput } from '../types.js';
 import { checkRequired } from '../types.js';
-import type { MappedRelease } from '../../contract.js';
-import { acmeFixture } from './fixtures.js';
-import { mapAcme } from './mapping.js';
-import { runJson } from '../../lib/exec.js';
-import type { AcmeExport } from './fixtures.js';
-
-const USE_MOCK = process.env.MOCK !== '0';
+import type { ContractStatus, MappedItem, MappedRelease, PushItemChange, PushResult } from '../../contract.js';
+import type { AcmeTicket } from './fixtures.js';
+import { ACME_ITEM_TYPES } from './itemTypes.js';
+import { mapAcme, mapTicket, toRawState } from './mapping.js';
+import { readWarehouse, writeWarehouse } from './warehouse.js';
 
 export const AcmeConnector: Connector = {
   meta: {
-    type: 'acme', // TODO(acme): your connector id (lowercase, e.g. 'phoenix')
-    label: 'Acme Tracker', // TODO(acme): display name shown in the app
+    type: 'acme',
+    label: 'Acme (Dev)',
+    // Acme needs no real routing — fields are optional so the consumer can bind a release
+    // with zero setup. They're advertised so the create-release form still has something
+    // to render, and to exercise the config plumbing.
     configFields: [
-      // TODO(acme): the non-secret routing params the app should collect. NO secrets
-      // here — tokens live in this service's env, keyed off the connector.
-      { key: 'project', label: 'Project', required: true, hint: 'e.g. PHX' },
-      { key: 'release', label: 'Release', required: true, hint: 'e.g. 5.0' },
+      { key: 'project', label: 'Project', required: false, hint: 'cosmetic for the dev backend, e.g. ACME' },
+      { key: 'release', label: 'Release', required: false, hint: 'cosmetic for the dev backend, e.g. 5.0' },
     ],
+    itemTypes: ACME_ITEM_TYPES,
   },
 
   async validate(config) {
-    // Structural check now. Later: a cheap CLI probe (e.g. `acme-cli whoami --json`).
+    // No required fields, so this always passes — the point of a frictionless dev backend.
     return checkRequired(AcmeConnector.meta, config);
   },
 
-  async fetchAndMap(config): Promise<MappedRelease> {
+  async fetchAndMap(_config): Promise<MappedRelease> {
+    return mapAcme(readWarehouse());
+  },
+
+  async push(_config, changes: PushItemChange[]): Promise<PushResult> {
+    const warehouse = readWarehouse();
+    const byId = new Map(warehouse.tickets.map((t) => [t.id, t]));
+
+    let pushed = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    for (const change of changes) {
+      const ticket = byId.get(change.externalId);
+      if (!ticket) {
+        failed++;
+        errors.push(`Unknown item ${change.externalId}`);
+        continue;
+      }
+      // Only writeable fields per the item-type catalog: points (estimate) and sprint (cycle).
+      if (typeof change.fields.points === 'number') ticket.estimate = change.fields.points;
+      if ('extSprintId' in change.fields) ticket.cycleId = change.fields.extSprintId ?? null;
+      pushed++;
+    }
+
+    if (pushed > 0) writeWarehouse(warehouse);
+    return { pushed, failed, errors };
+  },
+
+  async createItem(config, req: CreateItemInput): Promise<MappedItem> {
     const v = await this.validate(config);
     if (!v.ok) throw new Error(v.error ?? 'Invalid connector config');
 
-    if (USE_MOCK) {
-      return mapAcme(acmeFixture());
-    }
+    const warehouse = readWarehouse();
+    const n = 900 + warehouse.seq++;
+    const fields = (req.fields ?? {}) as Record<string, unknown>;
+    const num = (value: unknown): number => (Number.isFinite(Number(value)) ? Number(value) : 0);
 
-    // TODO(acme): real fetch. Example shape — replace bin/args with your tool's:
-    //   const raw = await runJson<AcmeExport>('acme-cli', [
-    //     'issues', '--project', config.project, '--release', config.release, '--json',
-    //   ], { timeoutMs: 60_000, env: { ACME_TOKEN: process.env.ACME_TOKEN! } });
-    //   return mapAcme(raw);
-    void runJson; // keep the import wired until the real call lands
-    throw new Error('Acme CLI fetch not implemented yet; run with MOCK=1 (default) to use fixtures');
+    const ticket: AcmeTicket = {
+      id: `ACME-${n}`,
+      typeId: req.type,
+      title: String(fields.subject ?? 'Untitled item'),
+      body: String(fields.description ?? ''),
+      state: toRawState((fields.status as ContractStatus) ?? 'Not Started'),
+      estimate: num(fields.points),
+      moduleId: req.extWorkStreamId ?? null,
+      cycleId: req.extSprintId ?? null,
+      assigneeId: req.extAssigneeId ?? null,
+    };
+
+    warehouse.tickets.push(ticket);
+    writeWarehouse(warehouse);
+
+    // Return it mapped so the consumer reconciles it as a synced item (no follow-up sync).
+    return mapTicket(ticket);
   },
 };
 
-export type { AcmeExport };
+export type { AcmeWarehouse } from './fixtures.js';

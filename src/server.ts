@@ -7,7 +7,7 @@ import type { Context } from 'hono';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { CONNECTORS, getConnector } from './registry.js';
-import type { ReleaseConnectorPayload, ValidateRequest } from './contract.js';
+import type { CreateItemRequest, PushRequest, ReleaseConnectorPayload, ValidateRequest } from './contract.js';
 
 // Explicit allowlist (comma-separated). Empty by default — see allowOrigin below.
 const APP_ORIGINS = (process.env.APP_ORIGIN ?? '')
@@ -52,6 +52,33 @@ export function createApp(): Hono {
   };
   app.post('/releases/sync', syncHandler);
   app.post('/releases/:id/sync', syncHandler);
+
+  // POST /releases/push — the app's real call (no id; body { connector, changes }).
+  // POST /releases/:id/push — the OpenAPI spec form. Both delegate to one handler.
+  const pushHandler = async (c: Context) => {
+    const body = await c.req.json<PushRequest>();
+    const connector = body.connector;
+    if (!connector?.type) return c.json({ error: 'Missing connector.type' }, 400);
+    const conn = getConnector(connector.type);
+    if (!conn) return c.json({ error: 'Unknown connector' }, 404);
+    if (!conn.push) return c.json({ error: 'Connector does not support push' }, 400);
+    return c.json(await conn.push(connector.config ?? {}, body.changes ?? []));
+  };
+  app.post('/releases/push', pushHandler);
+  app.post('/releases/:id/push', pushHandler);
+
+  // POST /releases/items — create a work item (no id; body { connector, ...createInput }).
+  // POST /releases/:id/items — the OpenAPI spec form. Both delegate to one handler.
+  const createItemHandler = async (c: Context) => {
+    const { connector, ...req } = await c.req.json<CreateItemRequest>();
+    if (!connector?.type) return c.json({ error: 'Missing connector.type' }, 400);
+    const conn = getConnector(connector.type);
+    if (!conn) return c.json({ error: 'Unknown connector' }, 404);
+    if (!conn.createItem) return c.json({ error: 'Connector does not support item creation' }, 400);
+    return c.json(await conn.createItem(connector.config ?? {}, req));
+  };
+  app.post('/releases/items', createItemHandler);
+  app.post('/releases/:id/items', createItemHandler);
 
   // Turn thrown errors (e.g. mapping/fetch failures) into clean JSON responses.
   app.onError((err, c) => {

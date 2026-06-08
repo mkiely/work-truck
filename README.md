@@ -11,19 +11,25 @@ it. Each connector is an anti-corruption layer that translates a foreign backend
 the app's `MappedRelease` shape. The service has no domain of its own — it's a
 Backend-for-Frontend / pure translator.
 
-## The contract (3 routes)
+## The contract (5 routes)
 
 | Method + path | Body | Returns |
 |---|---|---|
 | `GET /connectors` | — | `ConnectorMeta[]` |
 | `POST /connectors/:type/validate` | `{ config }` | `{ ok, error? }` |
-| `POST /releases/sync` | `{ connector: { type, config } }` | `MappedRelease` |
+| `POST /releases/sync` | `{ connector }` | `MappedRelease` |
+| `POST /releases/push` | `{ connector, changes }` | `PushResult` |
+| `POST /releases/items` | `{ connector, type, ...fields }` | `MappedItem` |
 
-> **Spec note:** the OpenAPI spec and the original handoff describe the sync route as
-> `POST /releases/{id}/sync`, but the app's actual client calls `POST /releases/sync`
-> (no id; see `release-tracker/src/sync/client.ts`). Consumer-driven means we conform
-> to what the app *sends*, so we serve `/releases/sync`. We also serve
-> `/releases/:id/sync` for spec-compatibility. The spec/app should be reconciled.
+`sync` reads (backend → app); `push` and `items` write (app → backend) — push updates
+writeable fields, items creates a work item and returns it mapped for reconciliation.
+Only connectors that implement `push` / `createItem` accept those routes.
+
+> **Spec note:** the OpenAPI spec describes the write routes with an id
+> (`/releases/{id}/sync|push|items`), but the app's actual client calls the id-less
+> forms (see `release-tracker/src/sync/client.ts`). Consumer-driven means we conform to
+> what the app *sends*, so we serve the id-less routes and also serve the `/:id/` forms
+> for spec-compatibility. The spec/app should be reconciled.
 
 Wire types are generated from the app-owned OpenAPI spec — they are never hand-copied.
 
@@ -57,8 +63,9 @@ Environment (`.env`):
 - `PORT` — listen port (default `8787`, matches the app's `VITE_SYNC_BASE_URL`).
 - `APP_ORIGIN` — comma-separated CORS origins (default
   `http://localhost:5173,http://localhost:5180`).
-- `MOCK` — `1` (default) maps offline fixtures; `0` will use a live backend (not
-  implemented yet).
+- `MOCK` — `1` (default) maps offline fixtures for live-fetch connectors (JIRA); `0`
+  will use a live backend (not implemented yet). Does not affect **Acme**, which is the
+  always-on in-process dev backend (no external system, no flag).
 
 ## Wiring the app to this service
 
@@ -77,24 +84,32 @@ change needed. Start both dev servers and trigger **Sync** on a release.
 src/
   contract.generated.ts   # GENERATED from the app's openapi.yaml — do not edit
   contract.ts             # ergonomic aliases over the generated types
-  server.ts               # Hono app: 3 routes + CORS + error wrapper
+  server.ts               # Hono app: the 5 routes + CORS + error wrapper
   index.ts                # entrypoint (serve on PORT)
   registry.ts             # CONNECTORS map + getConnector()
   connectors/
-    types.ts              # Connector interface + checkRequired()
-    jira/
-      index.ts            # JiraConnector (fixture-backed today)
-      mapping.ts          # pure: raw JIRA -> MappedRelease + status coercion
-      fixtures.ts         # canned raw JIRA JSON (Atlas 4.0 themed)
-      mapping.test.ts     # unit tests for mapJira()
+    types.ts              # Connector interface (+ optional push/createItem) + checkRequired()
+    jira/                 # HTTP connector (fixture-backed today)
+      index.ts, mapping.ts, fixtures.ts, mapping.test.ts
+    acme/                 # reference DEV backend: stateful, in-process, bidirectional
+      index.ts            # AcmeConnector: fetchAndMap + push + createItem
+      warehouse.ts        # Acme's seeded state on top of lib/storage.ts
+      fixtures.ts         # Acme's raw backend model + seed data
+      itemTypes.ts        # Acme's item-type catalog (creatable/writeable field specs)
+      mapping.ts          # pure: raw Acme <-> contract (status coercion both ways)
+      mapping.test.ts     # mapping + push + createItem unit tests
   lib/
-    http.ts               # fetch + Basic-auth helper (used in step 4)
+    http.ts               # fetch + Basic-auth helper (HTTP connectors)
+    exec.ts               # run a CLI + parse JSON stdout (CLI connectors)
+    storage.ts            # generic localStorage-shaped store for stateful dev backends
 ```
 
 ## Adding a connector
 
 1. Create `src/connectors/<name>/` with an object implementing `Connector`
-   (`meta`, `validate`, `fetchAndMap`). Keep mapping pure in a `mapping.ts`.
+   (`meta`, `validate`, `fetchAndMap`; optionally `push` / `createItem` for write-back).
+   Keep mapping pure in a `mapping.ts`.
 2. Register it in `src/registry.ts`.
 
-The three routes are backend-agnostic, so nothing else changes.
+The routes are backend-agnostic, so nothing else changes. See **CONNECTORS.md** for
+the patterns (HTTP, CLI, stateful dev backend) and the `MappedRelease` rules.

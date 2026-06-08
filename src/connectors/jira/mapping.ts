@@ -6,9 +6,9 @@ import type { ContractStatus, MappedRelease } from '../../contract.js';
 import type { JiraIssue, JiraRaw, JiraStatusCategory } from './fixtures.js';
 
 /**
- * Coerce a JIRA issue's status to the app's four canonical values. We never pass raw
+ * Coerce a JIRA issue's status to the contract's canonical values. We never pass raw
  * status through (handoff §5.4):
- *  - statusCategory: To Do -> Not Started, In Progress -> Active, Done -> Complete
+ *  - statusCategory: To Do -> Not Started, In Progress -> In Progress, Done -> Complete
  *  - a flagged/blocked/impeded issue overrides In Progress -> Blocked
  */
 export function coerceStatus(status: { name: string; statusCategory: JiraStatusCategory }, flagged?: boolean): ContractStatus {
@@ -20,7 +20,7 @@ export function coerceStatus(status: { name: string; statusCategory: JiraStatusC
     case 'done':
       return 'Complete';
     case 'indeterminate':
-      return 'Active';
+      return 'In Progress';
     case 'new':
     default:
       return 'Not Started';
@@ -56,6 +56,9 @@ export function mapJira(raw: JiraRaw): MappedRelease {
     externalId: issue.key,
     extWorkStreamId: issue.fields.epic?.key ?? null,
     extSprintId: issue.fields.sprint ? String(issue.fields.sprint.id) : null,
+    // Assignees aren't modeled in this fixture-only JIRA connector yet; the contract
+    // requires the field, so emit null (unassigned). Wire it up with the live fetch.
+    extAssigneeId: null,
     fields: {
       key: issue.key,
       subject: issue.fields.summary,

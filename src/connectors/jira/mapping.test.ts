@@ -10,7 +10,7 @@ const DONE: JiraStatusCategory = { key: 'done', name: 'Done' };
 describe('coerceStatus', () => {
   it('maps each status category to a canonical status', () => {
     expect(coerceStatus({ name: 'To Do', statusCategory: TODO })).toBe('Not Started');
-    expect(coerceStatus({ name: 'In Progress', statusCategory: PROG })).toBe('Active');
+    expect(coerceStatus({ name: 'In Progress', statusCategory: PROG })).toBe('In Progress');
     expect(coerceStatus({ name: 'Done', statusCategory: DONE })).toBe('Complete');
   });
 
@@ -44,7 +44,7 @@ describe('mapJira', () => {
     const item = out.items.find((i) => i.externalId === 'ATL-103')!;
     expect(item.extWorkStreamId).toBe('EPIC-CHK');
     expect(item.extSprintId).toBe('102');
-    expect(item.fields).toMatchObject({ key: 'ATL-103', subject: '3-D Secure handshake', status: 'Active', points: 8 });
+    expect(item.fields).toMatchObject({ key: 'ATL-103', subject: '3-D Secure handshake', status: 'In Progress', points: 8 });
   });
 
   it('coerces a flagged in-progress issue to Blocked', () => {
@@ -58,8 +58,8 @@ describe('mapJira', () => {
     expect(item.extWorkStreamId).toBe('EPIC-BILL');
   });
 
-  it('only ever emits the four canonical statuses', () => {
-    const allowed = new Set(['Not Started', 'Active', 'Blocked', 'Complete']);
+  it('only ever emits canonical statuses', () => {
+    const allowed = new Set(['Not Started', 'In Progress', 'Under Review', 'Blocked', 'Complete']);
     for (const i of out.items) expect(allowed.has(i.fields.status)).toBe(true);
   });
 });

@@ -7,10 +7,10 @@ import { AcmeConnector } from './connectors/acme/index.js';
 
 const connectors: Connector[] = [
   JiraConnector,
-  // The Acme connector is a stub (works on fixtures). It's disabled by default so it
-  // doesn't surface in the app until you've filled it in. Turn it on with ENABLE_ACME=1,
-  // or delete this guard to enable it permanently.
-  ...(process.env.ENABLE_ACME === '1' ? [AcmeConnector] : []),
+  // Acme is the always-on reference DEV backend: a self-contained, stateful in-process
+  // store (seeded fixtures + bidirectional push/createItem) for live-testing a consumer
+  // frontend with no external system. See src/connectors/acme.
+  AcmeConnector,
 ];
 
 export const CONNECTORS: Record<string, Connector> = Object.fromEntries(

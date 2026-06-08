@@ -10,15 +10,19 @@ import type { components } from './contract.generated.js';
 
 type Schemas = components['schemas'];
 
-/** The app's four canonical work-item statuses (this service must coerce to one of these). */
+/** The app's canonical work-item statuses (this service must coerce to one of these). */
 export type ContractStatus = Schemas['Status'];
 
 export type MappedWorkStream = Schemas['MappedWorkStream'];
 export type MappedSprint = Schemas['MappedSprint'];
+export type MappedMember = Schemas['MappedMember'];
+export type MappedTeam = Schemas['MappedTeam'];
 export type MappedItem = Schemas['MappedItem'];
 export type MappedRelease = Schemas['MappedRelease'];
 
 export type ConnectorConfigField = Schemas['ConnectorConfigField'];
+export type FieldSpec = Schemas['FieldSpec'];
+export type ConnectorItemType = Schemas['ConnectorItemType'];
 export type ConnectorMeta = Schemas['ConnectorMeta'];
 export type ValidateResult = Schemas['ValidateResult'];
 
@@ -26,5 +30,10 @@ export type ReleaseConnectorPayload = Schemas['ReleaseConnector'];
 export type SyncRequest = Schemas['SyncRequest'];
 export type ValidateRequest = Schemas['ValidateRequest'];
 
+export type PushItemChange = Schemas['PushItemChange'];
+export type PushRequest = Schemas['PushRequest'];
+export type PushResult = Schemas['PushResult'];
+export type CreateItemRequest = Schemas['CreateItemRequest'];
+
 /** Must match `info.version` in openapi.yaml — versions the wire contract with the app. */
-export const SYNC_CONTRACT_VERSION = '0.1.0';
+export const SYNC_CONTRACT_VERSION = '0.7.0';

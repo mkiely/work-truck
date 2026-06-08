@@ -1,37 +1,112 @@
-import { describe, expect, it } from 'vitest';
-import { coerceStatus, mapAcme } from './mapping.js';
-import { acmeFixture } from './fixtures.js';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { coerceStatus, mapAcme, toRawState } from './mapping.js';
+import { seedWarehouse } from './fixtures.js';
+import { resetWarehouse } from './warehouse.js';
+import { AcmeConnector } from './index.js';
 
-// TODO(acme): expand these once fixtures.ts reflects your tool's real output. They
-// exist now so the stub is exercised and the four-status invariant is guarded.
+const CANONICAL = ['Not Started', 'In Progress', 'Under Review', 'Blocked', 'Complete'] as const;
 
 describe('acme coerceStatus', () => {
-  it('maps raw status strings to canonical statuses', () => {
+  it('maps raw state strings to the five canonical statuses', () => {
+    expect(coerceStatus('todo')).toBe('Not Started');
     expect(coerceStatus('open')).toBe('Not Started');
-    expect(coerceStatus('in_progress')).toBe('Active');
+    expect(coerceStatus('in_progress')).toBe('In Progress');
+    expect(coerceStatus('in_review')).toBe('Under Review');
     expect(coerceStatus('blocked')).toBe('Blocked');
     expect(coerceStatus('done')).toBe('Complete');
+  });
+
+  it('round-trips through toRawState back to the same canonical status', () => {
+    for (const status of CANONICAL) {
+      expect(coerceStatus(toRawState(status))).toBe(status);
+    }
   });
 });
 
 describe('mapAcme', () => {
-  const out = mapAcme(acmeFixture());
+  const out = mapAcme(seedWarehouse());
 
-  it('maps modules/cycles/tickets into the contract shape', () => {
-    expect(out.workStreams[0]).toEqual({ externalId: 'MOD-1', fields: { name: 'Platform' } });
+  it('maps the team + members, flagging non-contributing members', () => {
+    expect(out.team?.externalId).toBe('TEAM-ACME');
+    expect(out.team?.fields.name).toBe('Acme Platform');
+    const pete = out.team?.members.find((m) => m.externalId === 'USR-PETE');
+    expect(pete?.fields.nonContributing).toBe(true);
+    const ada = out.team?.members.find((m) => m.externalId === 'USR-ADA');
+    expect(ada?.fields.nonContributing).toBeUndefined();
+  });
+
+  it('maps modules/cycles into work streams/sprints', () => {
+    expect(out.workStreams[0]).toEqual({ externalId: 'MOD-CHK', fields: { name: 'Checkout API' } });
     expect(out.sprints[0]).toEqual({
       externalId: 'CYC-1',
       fields: { name: 'Iteration 1', startISO: '2026-04-13', endISO: '2026-04-26' },
     });
   });
 
-  it('represents an unscheduled ticket with extSprintId null (backlog)', () => {
-    const item = out.items.find((i) => i.externalId === 'PHX-4')!;
-    expect(item.extSprintId).toBeNull();
+  it('maps a ticket with assignee + itemType', () => {
+    const item = out.items.find((i) => i.externalId === 'ACME-101')!;
+    expect(item.extWorkStreamId).toBe('MOD-CHK');
+    expect(item.extSprintId).toBe('CYC-1');
+    expect(item.extAssigneeId).toBe('USR-ADA');
+    expect(item.fields.status).toBe('Complete');
+    expect(item.fields.itemType).toEqual({ id: 'acme_story', label: 'Story' });
   });
 
-  it('only ever emits the four canonical statuses', () => {
-    const allowed = new Set(['Not Started', 'Active', 'Blocked', 'Complete']);
+  it('represents an unscheduled ticket as backlog (extSprintId null) and unassigned', () => {
+    const item = out.items.find((i) => i.externalId === 'ACME-122')!;
+    expect(item.extSprintId).toBeNull();
+    expect(item.extAssigneeId).toBeNull();
+  });
+
+  it('only ever emits canonical statuses', () => {
+    const allowed = new Set<string>(CANONICAL);
     for (const i of out.items) expect(allowed.has(i.fields.status)).toBe(true);
+  });
+});
+
+describe('AcmeConnector bidirectional behavior', () => {
+  beforeEach(() => resetWarehouse());
+
+  it('push applies writeable points + sprint and the change survives a re-sync', async () => {
+    const res = await AcmeConnector.push!({}, [
+      { externalId: 'ACME-102', fields: { points: 13, extSprintId: 'CYC-3' } },
+      { externalId: 'ACME-122', fields: { extSprintId: null } }, // already backlog; stays null
+    ]);
+    expect(res).toEqual({ pushed: 2, failed: 0, errors: [] });
+
+    const synced = await AcmeConnector.fetchAndMap({});
+    const item = synced.items.find((i) => i.externalId === 'ACME-102')!;
+    expect(item.fields.points).toBe(13);
+    expect(item.extSprintId).toBe('CYC-3');
+  });
+
+  it('push reports unknown items as failed without aborting the batch', async () => {
+    const res = await AcmeConnector.push!({}, [
+      { externalId: 'ACME-101', fields: { points: 1 } },
+      { externalId: 'NOPE-999', fields: { points: 2 } },
+    ]);
+    expect(res.pushed).toBe(1);
+    expect(res.failed).toBe(1);
+    expect(res.errors[0]).toContain('NOPE-999');
+  });
+
+  it('createItem allocates an id/key, persists, and returns a reconcilable item', async () => {
+    const created = await AcmeConnector.createItem!({}, {
+      type: 'acme_task',
+      extWorkStreamId: 'MOD-SRCH',
+      extSprintId: 'CYC-1',
+      extAssigneeId: 'USR-TOM',
+      fields: { subject: 'Smoke test item', points: 2, status: 'In Progress' },
+    });
+
+    expect(created.externalId).toMatch(/^ACME-\d+$/);
+    expect(created.fields.key).toBe(created.externalId);
+    expect(created.fields.subject).toBe('Smoke test item');
+    expect(created.fields.status).toBe('In Progress');
+    expect(created.fields.itemType).toEqual({ id: 'acme_task', label: 'Task' });
+
+    // It shows up on the next sync.
+    const synced = await AcmeConnector.fetchAndMap({});
+    expect(synced.items.some((i) => i.externalId === created.externalId)).toBe(true);
   });
 });
