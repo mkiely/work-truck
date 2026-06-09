@@ -62,6 +62,13 @@ describe('mapAcme', () => {
     const allowed = new Set<string>(CANONICAL);
     for (const i of out.items) expect(allowed.has(i.fields.status)).toBe(true);
   });
+
+  it('emits catalog-declared vocabulary as attributes; omits the bag otherwise', () => {
+    const bugItem = out.items.find((i) => i.externalId === 'ACME-122')!;
+    expect(bugItem.attributes).toEqual({ severity: 'high' });
+    const story = out.items.find((i) => i.externalId === 'ACME-101')!;
+    expect(story.attributes).toBeUndefined();
+  });
 });
 
 describe('AcmeConnector bidirectional behavior', () => {
@@ -88,6 +95,22 @@ describe('AcmeConnector bidirectional behavior', () => {
     expect(res.pushed).toBe(1);
     expect(res.failed).toBe(1);
     expect(res.errors[0]).toContain('NOPE-999');
+  });
+
+  it('createItem persists vocabulary fields and round-trips them as attributes', async () => {
+    const created = await AcmeConnector.createItem!({}, {
+      type: 'acme_bug',
+      extWorkStreamId: 'MOD-CHK',
+      extSprintId: null,
+      extAssigneeId: null,
+      fields: { subject: 'Crash on submit', severity: 'critical' },
+    });
+    expect(created.attributes).toEqual({ severity: 'critical' });
+
+    // The value survives in the warehouse and comes back on the next sync.
+    const synced = await AcmeConnector.fetchAndMap({});
+    const again = synced.items.find((i) => i.externalId === created.externalId)!;
+    expect(again.attributes).toEqual({ severity: 'critical' });
   });
 
   it('createItem allocates an id/key, persists, and returns a reconcilable item', async () => {

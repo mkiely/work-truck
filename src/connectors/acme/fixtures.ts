@@ -48,6 +48,8 @@ export interface AcmeTicket {
   moduleId: string | null; // -> extWorkStreamId
   cycleId: string | null; // -> extSprintId (null = backlog)
   assigneeId: string | null; // -> extAssigneeId
+  /** Bug severity — vocabulary, not canonical; surfaces via attributes (catalog: acme_bug.severity). */
+  severity?: string;
 }
 
 /** The entire Acme backend, as one document. This is what the warehouse persists. */
@@ -97,7 +99,7 @@ export function seedWarehouse(): AcmeWarehouse {
       { id: 'ACME-120', typeId: 'acme_story', title: 'Dual-write ledger', body: '', state: 'in_progress', estimate: 8, moduleId: 'MOD-BILL', cycleId: 'CYC-2', assigneeId: 'USR-ADA' },
       { id: 'ACME-121', typeId: 'acme_story', title: 'Proration engine', body: '', state: 'todo', estimate: 5, moduleId: 'MOD-BILL', cycleId: 'CYC-3', assigneeId: 'USR-MARCO' },
       // Unscheduled (no cycle) -> lands in the backlog. Unassigned.
-      { id: 'ACME-122', typeId: 'acme_bug', title: 'Legacy data backfill drops rows', body: 'Backfill loses rows when the source page boundary splits a record.', state: 'todo', estimate: 3, moduleId: 'MOD-BILL', cycleId: null, assigneeId: null },
+      { id: 'ACME-122', typeId: 'acme_bug', title: 'Legacy data backfill drops rows', body: 'Backfill loses rows when the source page boundary splits a record.', state: 'todo', estimate: 3, moduleId: 'MOD-BILL', cycleId: null, assigneeId: null, severity: 'high' },
     ],
     seq: 0,
   };

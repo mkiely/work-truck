@@ -101,10 +101,17 @@ export interface components {
          * @enum {string}
          */
         Status: "Not Started" | "In Progress" | "Under Review" | "Blocked" | "Complete";
+        /** @description Connector vocabulary values, keyed by FieldSpec.key. Carries ONLY fields declared in the connector's catalog that do not map to a canonical field (no `role`, not `kind: ref`, not an app-canonical enum) — canonical values travel in `fields`/ref ids, never here. Scalars only. The service filters and coerces values to the declared `kind` at the boundary, so consumers can trust the bag without re-validating. Connector-owned: external wins on sync. */
+        AttributeBag: {
+            [key: string]: (string | number | boolean) | null;
+        };
         MappedWorkStream: {
             externalId: string;
+            attributes?: components["schemas"]["AttributeBag"];
             fields: {
                 name: string;
+                /** @description Build/release label this work stream belongs to, when it differs from the release being synced (e.g. "Orion 1.5") — i.e. the stream was carried in from a prior release rather than planned for this one. Null (or omitted) for streams native to the current release. Mirrors the item-level `build` field; lets the app hide carried-in streams. */
+                build?: string | null;
             };
         };
         MappedSprint: {
@@ -140,6 +147,7 @@ export interface components {
             extSprintId: string | null;
             /** @description External assignee id; the app resolves it to a local member. */
             extAssigneeId: string | null;
+            attributes?: components["schemas"]["AttributeBag"];
             fields: {
                 /** @description External-provided, e.g. PROJ-123 */
                 key: string;

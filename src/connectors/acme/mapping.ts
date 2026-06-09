@@ -3,8 +3,9 @@
 // vocabulary (modules/cycles/tickets/members) on the left, the contract on the right.
 
 import type { ContractStatus, MappedItem, MappedRelease } from '../../contract.js';
+import { filterAttributes } from '../../lib/attributes.js';
 import type { AcmeTicket, AcmeWarehouse } from './fixtures.js';
-import { acmeTypeLabel } from './itemTypes.js';
+import { ACME_ITEM_TYPES, acmeTypeLabel } from './itemTypes.js';
 
 /**
  * Coerce a raw Acme state string to one of the contract's canonical statuses. Never pass
@@ -46,11 +47,18 @@ function toDateOnly(value: string): string {
 
 /** Map one raw ticket to a MappedItem. Shared by sync (fetchAndMap) and createItem. */
 export function mapTicket(t: AcmeTicket): MappedItem {
+  // Vocabulary values pass through the boundary filter: only catalog-declared
+  // attribute fields, coerced to their declared kind.
+  const attributes = filterAttributes(
+    ACME_ITEM_TYPES.find((it) => it.id === t.typeId),
+    { severity: t.severity },
+  );
   return {
     externalId: t.id,
     extWorkStreamId: t.moduleId,
     extSprintId: t.cycleId,
     extAssigneeId: t.assigneeId,
+    ...(attributes && { attributes }),
     fields: {
       key: t.id,
       subject: t.title,

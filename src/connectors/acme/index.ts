@@ -84,6 +84,9 @@ export const AcmeConnector: Connector = {
       moduleId: req.extWorkStreamId ?? null,
       cycleId: req.extSprintId ?? null,
       assigneeId: req.extAssigneeId ?? null,
+      // Vocabulary: store the raw value; mapTicket's boundary filter validates it
+      // against the catalog on the way back out.
+      ...(typeof fields.severity === 'string' && fields.severity && { severity: fields.severity }),
     };
 
     warehouse.tickets.push(ticket);
