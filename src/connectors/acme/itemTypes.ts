@@ -44,15 +44,15 @@ export const ACME_ITEM_TYPES: ConnectorItemType[] = [
       { key: 'assignee', label: 'Assignee', kind: 'ref', target: 'member', creatable: true, writeable: false },
       { key: 'points', label: 'Estimate', kind: 'number', role: 'points', creatable: true, writeable: true },
       // Vocabulary field (no role/ref): required at creation, round-trips via
-      // attributes (filterAttributes in mapping.ts), read-only in the consumer
-      // until the contract generalizes attribute write-back.
+      // attributes (filterAttributes in mapping.ts), and — being writeable —
+      // accepts pushed updates through PushItemChange.fields.attributes.
       {
         key: 'severity',
         label: 'Severity',
         kind: 'enum',
         required: true,
         creatable: true,
-        writeable: false,
+        writeable: true,
         options: [
           { value: 'low', label: 'Low' },
           { value: 'medium', label: 'Medium' },

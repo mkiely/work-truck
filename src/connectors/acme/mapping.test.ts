@@ -87,6 +87,24 @@ describe('AcmeConnector bidirectional behavior', () => {
     expect(item.extSprintId).toBe('CYC-3');
   });
 
+  it('push applies a writeable vocabulary field and drops invalid values', async () => {
+    const res = await AcmeConnector.push!({}, [
+      { externalId: 'ACME-122', fields: { attributes: { severity: 'critical', rawJunk: 'x' } } },
+    ]);
+    expect(res.pushed).toBe(1);
+
+    const synced = await AcmeConnector.fetchAndMap({});
+    const bug = synced.items.find((i) => i.externalId === 'ACME-122')!;
+    expect(bug.attributes).toEqual({ severity: 'critical' });
+
+    // An out-of-options enum value is dropped at the boundary — severity unchanged.
+    await AcmeConnector.push!({}, [
+      { externalId: 'ACME-122', fields: { attributes: { severity: 'not-a-severity' } } },
+    ]);
+    const again = await AcmeConnector.fetchAndMap({});
+    expect(again.items.find((i) => i.externalId === 'ACME-122')!.attributes).toEqual({ severity: 'critical' });
+  });
+
   it('push reports unknown items as failed without aborting the batch', async () => {
     const res = await AcmeConnector.push!({}, [
       { externalId: 'ACME-101', fields: { points: 1 } },

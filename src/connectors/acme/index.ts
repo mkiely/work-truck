@@ -11,6 +11,7 @@
 
 import type { Connector, CreateItemInput } from '../types.js';
 import { checkRequired } from '../types.js';
+import { filterAttributes } from '../../lib/attributes.js';
 import type { ContractStatus, MappedItem, MappedRelease, PushItemChange, PushResult } from '../../contract.js';
 import type { AcmeTicket } from './fixtures.js';
 import { ACME_ITEM_TYPES } from './itemTypes.js';
@@ -55,9 +56,16 @@ export const AcmeConnector: Connector = {
         errors.push(`Unknown item ${change.externalId}`);
         continue;
       }
-      // Only writeable fields per the item-type catalog: points (estimate) and sprint (cycle).
+      // Only writeable fields per the item-type catalog: points (estimate), sprint
+      // (cycle), and writeable vocabulary keys (validated through the same boundary
+      // filter sync uses — undeclared keys / bad enum values are dropped).
       if (typeof change.fields.points === 'number') ticket.estimate = change.fields.points;
       if ('extSprintId' in change.fields) ticket.cycleId = change.fields.extSprintId ?? null;
+      if (change.fields.attributes) {
+        const type = ACME_ITEM_TYPES.find((it) => it.id === ticket.typeId);
+        const valid = filterAttributes(type, change.fields.attributes) ?? {};
+        if ('severity' in valid) ticket.severity = valid.severity == null ? undefined : String(valid.severity);
+      }
       pushed++;
     }
 

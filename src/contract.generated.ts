@@ -282,6 +282,8 @@ export interface components {
                 points?: number;
                 /** @description External sprint id, or null for backlog. */
                 extSprintId?: string | null;
+                /** @description Dirty vocabulary values, keyed by FieldSpec.key. Only fields the item type declares writeable. The service must validate against its catalog (declared key, coercible kind, enum membership) before writing to the backend. */
+                attributes?: components["schemas"]["AttributeBag"];
             };
         };
         PushRequest: {
