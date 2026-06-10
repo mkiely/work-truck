@@ -97,10 +97,23 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
-         * @description The app's five canonical work-item statuses. The service must coerce to one of these.
+         * @description The app's five canonical work-item statuses — the CATEGORIES the app's derivations (capacity, health, segments) compute over. The service must coerce every native state to one of these. Connectors with richer workflows additionally declare their native states via ConnectorMeta.statuses and tag items with statusNative.
          * @enum {string}
          */
         Status: "Not Started" | "In Progress" | "Under Review" | "Blocked" | "Complete";
+        /** @description One native workflow state of the connector's backend, mapped onto a canonical category. The full list (ConnectorMeta.statuses) is the status vocabulary: it supplies the app's edit options and validates pushed statusId values. Two or more native states may share a category. */
+        StatusDef: {
+            /** @description Connector-native state id, e.g. in_review. */
+            id: string;
+            /** @description Display label, e.g. "In Review". */
+            label: string;
+            category: components["schemas"]["Status"];
+        };
+        /** @description An item's native workflow state (denormalized id + label, mirroring itemType). The item's `status` field still carries the canonical category; this adds the real state for display. */
+        StatusRef: {
+            id: string;
+            label: string;
+        };
         /** @description Connector vocabulary values, keyed by FieldSpec.key. Carries ONLY fields declared in the connector's catalog that do not map to a canonical field (no `role`, not `kind: ref`, not an app-canonical enum) — canonical values travel in `fields`/ref ids, never here. Scalars only. The service filters and coerces values to the declared `kind` at the boundary, so consumers can trust the bag without re-validating. Connector-owned: external wins on sync. */
         AttributeBag: {
             [key: string]: (string | number | boolean) | null;
@@ -154,6 +167,8 @@ export interface components {
                 subject: string;
                 description: string;
                 status: components["schemas"]["Status"];
+                /** @description The item's native workflow state, when the connector declares a status vocabulary. Must be one of ConnectorMeta.statuses (its category must equal this item's `status`). Omit/null when the backend has no richer workflow than the canonical five. */
+                statusNative?: components["schemas"]["StatusRef"] | null;
                 points: number;
                 /** @description Optional build/release label for patch items originating from a prior release (e.g. "Orion 1.5"). Set by the connector when the item's fix version differs from the current release. Null for native items. */
                 build?: string | null;
@@ -254,6 +269,8 @@ export interface components {
             configFields: components["schemas"]["ConnectorConfigField"][];
             /** @description The connector's work-item type catalog. Absent or empty means no item types are exposed: nothing is creatable (the app hides "New work item") and nothing is writeable. */
             itemTypes?: components["schemas"]["ConnectorItemType"][];
+            /** @description The connector's status vocabulary: every native workflow state it can emit, each mapped to a canonical category. Drives the app's status edit options (when an item type declares a writeable status field) and validates pushed statusId values. Absent or empty means the backend uses the canonical five directly and items carry no statusNative. */
+            statuses?: components["schemas"]["StatusDef"][];
         };
         /** @description A release's binding to a backend. config holds only non-secret routing params. */
         ReleaseConnector: {
@@ -282,6 +299,8 @@ export interface components {
                 points?: number;
                 /** @description External sprint id, or null for backlog. */
                 extSprintId?: string | null;
+                /** @description Native status id (a StatusDef.id from the connector's vocabulary) to transition the item to. Only sent when the item's type declares a writeable status field; the service must validate the id against its vocabulary before writing. */
+                statusId?: string;
                 /** @description Dirty vocabulary values, keyed by FieldSpec.key. Only fields the item type declares writeable. The service must validate against its catalog (declared key, coercible kind, enum membership) before writing to the backend. */
                 attributes?: components["schemas"]["AttributeBag"];
             };

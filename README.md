@@ -63,9 +63,9 @@ Environment (`.env`):
 - `PORT` — listen port (default `8787`, matches the app's `VITE_SYNC_BASE_URL`).
 - `APP_ORIGIN` — comma-separated CORS origins (default
   `http://localhost:5173,http://localhost:5180`).
-- `MOCK` — `1` (default) maps offline fixtures for live-fetch connectors (JIRA); `0`
-  will use a live backend (not implemented yet). Does not affect **Acme**, which is the
-  always-on in-process dev backend (no external system, no flag).
+- `MOCK` — `1` (default) maps offline fixtures for live-fetch connectors; `0` uses
+  the live backend. Does not affect **Acme**, which is the always-on in-process dev
+  backend (no external system, no flag).
 
 ## Wiring the app to this service
 
@@ -89,13 +89,14 @@ src/
   registry.ts             # CONNECTORS map + getConnector()
   connectors/
     types.ts              # Connector interface (+ optional push/createItem) + checkRequired()
-    jira/                 # HTTP connector (fixture-backed today)
-      index.ts, mapping.ts, fixtures.ts, mapping.test.ts
-    acme/                 # reference DEV backend: stateful, in-process, bidirectional
+    acme/                 # the REFERENCE connector: a stateful in-process DEV backend that
+                          # exercises every contract capability (sync, push incl. status +
+                          # attributes, createItem, item-type catalog, status vocabulary).
+                          # Build new connectors against it as the template.
       index.ts            # AcmeConnector: fetchAndMap + push + createItem
       warehouse.ts        # Acme's seeded state on top of lib/storage.ts
       fixtures.ts         # Acme's raw backend model + seed data
-      itemTypes.ts        # Acme's item-type catalog (creatable/writeable field specs)
+      itemTypes.ts        # Acme's item-type catalog + status vocabulary
       mapping.ts          # pure: raw Acme <-> contract (status coercion both ways)
       mapping.test.ts     # mapping + push + createItem unit tests
   lib/

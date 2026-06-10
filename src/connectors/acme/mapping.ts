@@ -5,7 +5,7 @@
 import type { ContractStatus, MappedItem, MappedRelease } from '../../contract.js';
 import { filterAttributes } from '../../lib/attributes.js';
 import type { AcmeTicket, AcmeWarehouse } from './fixtures.js';
-import { ACME_ITEM_TYPES, acmeTypeLabel } from './itemTypes.js';
+import { ACME_ITEM_TYPES, ACME_STATUSES, acmeTypeLabel } from './itemTypes.js';
 
 /**
  * Coerce a raw Acme state string to one of the contract's canonical statuses. Never pass
@@ -53,6 +53,9 @@ export function mapTicket(t: AcmeTicket): MappedItem {
     ACME_ITEM_TYPES.find((it) => it.id === t.typeId),
     { severity: t.severity },
   );
+  // Native workflow state: declared states map exactly (id + label + category);
+  // an undeclared raw state degrades to a bare coerced category, statusNative null.
+  const statusDef = ACME_STATUSES.find((s) => s.id === t.state);
   return {
     externalId: t.id,
     extWorkStreamId: t.moduleId,
@@ -63,7 +66,8 @@ export function mapTicket(t: AcmeTicket): MappedItem {
       key: t.id,
       subject: t.title,
       description: t.body ?? '',
-      status: coerceStatus(t.state),
+      status: statusDef?.category ?? coerceStatus(t.state),
+      statusNative: statusDef ? { id: statusDef.id, label: statusDef.label } : null,
       points: typeof t.estimate === 'number' ? t.estimate : 0,
       itemType: { id: t.typeId, label: acmeTypeLabel(t.typeId) },
     },

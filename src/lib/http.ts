@@ -1,7 +1,7 @@
-// Small fetch + Basic-auth helper for HTTP-backed connectors (Atlassian Cloud uses
-// `email:apiToken` Basic auth). STUB for now — the JIRA connector runs on fixtures
-// until step 4 (live JIRA Cloud). Credentials are read from the service's own env
-// here and never come from the app.
+// Small fetch + Basic-auth helper for HTTP-backed connectors (e.g. backends using
+// `email:apiToken` Basic auth). Credentials are read from the service's own env
+// and never come from the app. No connector uses it yet — kept as the building
+// block for the first live HTTP backend.
 
 export interface BasicAuth {
   email: string;

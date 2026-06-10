@@ -26,6 +26,11 @@ export type ConnectorItemType = Schemas['ConnectorItemType'];
 
 /** Connector vocabulary values keyed by FieldSpec.key (non-canonical fields only). */
 export type AttributeBag = Schemas['AttributeBag'];
+
+/** One native workflow state mapped to a canonical category (see ConnectorMeta.statuses). */
+export type StatusDef = Schemas['StatusDef'];
+/** An item's native workflow state (denormalized id + label, mirrors itemType). */
+export type StatusRef = Schemas['StatusRef'];
 export type ConnectorMeta = Schemas['ConnectorMeta'];
 export type ValidateResult = Schemas['ValidateResult'];
 
@@ -39,4 +44,4 @@ export type PushResult = Schemas['PushResult'];
 export type CreateItemRequest = Schemas['CreateItemRequest'];
 
 /** Must match `info.version` in openapi.yaml — versions the wire contract with the app. */
-export const SYNC_CONTRACT_VERSION = '0.10.0';
+export const SYNC_CONTRACT_VERSION = '0.11.0';

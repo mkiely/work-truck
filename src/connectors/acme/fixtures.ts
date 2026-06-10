@@ -93,7 +93,9 @@ export function seedWarehouse(): AcmeWarehouse {
     tickets: [
       { id: 'ACME-101', typeId: 'acme_story', title: 'Tokenize card vault', body: 'PCI-scoped vault for card tokens.', state: 'done', estimate: 5, moduleId: 'MOD-CHK', cycleId: 'CYC-1', assigneeId: 'USR-ADA' },
       { id: 'ACME-102', typeId: 'acme_story', title: 'Idempotent charge endpoint', body: '', state: 'in_progress', estimate: 3, moduleId: 'MOD-CHK', cycleId: 'CYC-1', assigneeId: 'USR-MARCO' },
-      { id: 'ACME-103', typeId: 'acme_story', title: '3-D Secure handshake', body: '', state: 'in_review', estimate: 8, moduleId: 'MOD-CHK', cycleId: 'CYC-2', assigneeId: 'USR-WEI' },
+      // 'qa' and 'in_review' both map to the Under Review category — the native
+      // labels ("QA Verify" vs "In Review") are what the vocabulary preserves.
+      { id: 'ACME-103', typeId: 'acme_story', title: '3-D Secure handshake', body: '', state: 'qa', estimate: 8, moduleId: 'MOD-CHK', cycleId: 'CYC-2', assigneeId: 'USR-WEI' },
       { id: 'ACME-110', typeId: 'acme_story', title: 'Typeahead suggestions', body: '', state: 'done', estimate: 3, moduleId: 'MOD-SRCH', cycleId: 'CYC-1', assigneeId: 'USR-DEVI' },
       { id: 'ACME-111', typeId: 'acme_task', title: 'Relevance ranking model', body: '', state: 'blocked', estimate: 5, moduleId: 'MOD-SRCH', cycleId: 'CYC-2', assigneeId: 'USR-TOM' },
       { id: 'ACME-120', typeId: 'acme_story', title: 'Dual-write ledger', body: '', state: 'in_progress', estimate: 8, moduleId: 'MOD-BILL', cycleId: 'CYC-2', assigneeId: 'USR-ADA' },

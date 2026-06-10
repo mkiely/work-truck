@@ -63,6 +63,16 @@ describe('mapAcme', () => {
     for (const i of out.items) expect(allowed.has(i.fields.status)).toBe(true);
   });
 
+  it('emits the native workflow state alongside the coerced category', () => {
+    // 'qa' and 'in_review' both flatten to Under Review — the native label is
+    // the information the vocabulary preserves.
+    const qa = out.items.find((i) => i.externalId === 'ACME-103')!;
+    expect(qa.fields.status).toBe('Under Review');
+    expect(qa.fields.statusNative).toEqual({ id: 'qa', label: 'QA Verify' });
+    const doing = out.items.find((i) => i.externalId === 'ACME-102')!;
+    expect(doing.fields.statusNative).toEqual({ id: 'in_progress', label: 'Doing' });
+  });
+
   it('emits catalog-declared vocabulary as attributes; omits the bag otherwise', () => {
     const bugItem = out.items.find((i) => i.externalId === 'ACME-122')!;
     expect(bugItem.attributes).toEqual({ severity: 'high' });
@@ -85,6 +95,25 @@ describe('AcmeConnector bidirectional behavior', () => {
     const item = synced.items.find((i) => i.externalId === 'ACME-102')!;
     expect(item.fields.points).toBe(13);
     expect(item.extSprintId).toBe('CYC-3');
+  });
+
+  it('push applies a valid status transition and ignores undeclared state ids', async () => {
+    const res = await AcmeConnector.push!({}, [
+      { externalId: 'ACME-102', fields: { statusId: 'qa' } },
+    ]);
+    expect(res.pushed).toBe(1);
+    let synced = await AcmeConnector.fetchAndMap({});
+    let item = synced.items.find((i) => i.externalId === 'ACME-102')!;
+    expect(item.fields.statusNative).toEqual({ id: 'qa', label: 'QA Verify' });
+    expect(item.fields.status).toBe('Under Review');
+
+    // An id outside the vocabulary is ignored — state unchanged.
+    await AcmeConnector.push!({}, [
+      { externalId: 'ACME-102', fields: { statusId: 'not-a-state' } },
+    ]);
+    synced = await AcmeConnector.fetchAndMap({});
+    item = synced.items.find((i) => i.externalId === 'ACME-102')!;
+    expect(item.fields.statusNative?.id).toBe('qa');
   });
 
   it('push applies a writeable vocabulary field and drops invalid values', async () => {

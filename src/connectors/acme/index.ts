@@ -14,7 +14,7 @@ import { checkRequired } from '../types.js';
 import { filterAttributes } from '../../lib/attributes.js';
 import type { ContractStatus, MappedItem, MappedRelease, PushItemChange, PushResult } from '../../contract.js';
 import type { AcmeTicket } from './fixtures.js';
-import { ACME_ITEM_TYPES } from './itemTypes.js';
+import { ACME_ITEM_TYPES, ACME_STATUSES } from './itemTypes.js';
 import { mapAcme, mapTicket, toRawState } from './mapping.js';
 import { readWarehouse, writeWarehouse } from './warehouse.js';
 
@@ -30,6 +30,7 @@ export const AcmeConnector: Connector = {
       { key: 'release', label: 'Release', required: false, hint: 'cosmetic for the dev backend, e.g. 5.0' },
     ],
     itemTypes: ACME_ITEM_TYPES,
+    statuses: ACME_STATUSES,
   },
 
   async validate(config) {
@@ -61,6 +62,10 @@ export const AcmeConnector: Connector = {
       // filter sync uses — undeclared keys / bad enum values are dropped).
       if (typeof change.fields.points === 'number') ticket.estimate = change.fields.points;
       if ('extSprintId' in change.fields) ticket.cycleId = change.fields.extSprintId ?? null;
+      // Status transition: the pushed id must be a declared vocabulary state.
+      if (change.fields.statusId && ACME_STATUSES.some((s) => s.id === change.fields.statusId)) {
+        ticket.state = change.fields.statusId;
+      }
       if (change.fields.attributes) {
         const type = ACME_ITEM_TYPES.find((it) => it.id === ticket.typeId);
         const valid = filterAttributes(type, change.fields.attributes) ?? {};
