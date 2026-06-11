@@ -23,7 +23,10 @@ Backend-for-Frontend / pure translator.
 
 `sync` reads (backend → app); `push` and `items` write (app → backend) — push updates
 writeable fields, items creates a work item and returns it mapped for reconciliation.
-Only connectors that implement `push` / `createItem` accept those routes.
+Only connectors that implement `push` / `createItem` accept those routes. Write routes
+reject invalid requests with **422** (`ValidationProblem`: a summary + field-keyed
+errors) by throwing `ValidationError` from `src/lib/validate.ts` — the server's
+error wrapper does the mapping.
 
 > **Spec note:** the OpenAPI spec describes the write routes with an id
 > (`/releases/{id}/sync|push|items`), but the app's actual client calls the id-less
@@ -66,6 +69,43 @@ Environment (`.env`):
 - `MOCK` — `1` (default) maps offline fixtures for live-fetch connectors; `0` uses
   the live backend. Does not affect **Acme**, which is the always-on in-process dev
   backend (no external system, no flag).
+
+## Implementing a new connector
+
+Acme (`src/connectors/acme/`) is the reference — it exercises every contract
+capability. To add a backend, mirror its structure:
+
+1. **Create `src/connectors/<type>/`** with an `index.ts` exporting a
+   `Connector` (see `src/connectors/types.ts`), then **register it** — one line
+   in `src/registry.ts`. The routes never change.
+2. **Declare `meta`** honestly — it is the app's capability handshake:
+   - `configFields` — non-secret routing params the user fills in (credentials
+     come from this service's env, never from the app).
+   - `itemTypes` — the full field catalog, each field as data
+     (`kind`/`role`/`target`, constraints, `creatable`/`writeable`). The app
+     derives create forms, edit locks, push capability, and table columns from
+     it; a missing `role: points` field makes the app disable capacity math for
+     that backend, so don't omit what exists and don't declare what doesn't.
+   - `statuses` — the native workflow vocabulary (`{id, label, category}`).
+3. **`fetchAndMap(config)`** → `MappedRelease`, keyed by `externalId`
+   throughout. Per item: coerce `status` to a canonical category, set
+   `statusNative` from the vocabulary, resolve refs to `ext*Id`s
+   (`extSprintId: null` = backlog), and pass vocabulary values through
+   `filterAttributes` (`src/lib/attributes.ts`) so only catalog-declared,
+   kind-coerced values reach the wire. Keep mapping pure (no I/O) in a
+   `mapping.ts` — that's what makes it unit-testable.
+4. **`push(config, changes)`** (optional) — apply `points`, `extSprintId`,
+   `statusId` (validate against your vocabulary), and `attributes` (validate
+   via `filterAttributes`). Ignore invalid values; count per-item failures in
+   `PushResult`.
+5. **`createItem(config, req)`** (optional) — validate with
+   `catalogCreateErrors` (`src/lib/validate.ts`) plus your backend's own
+   conditional rules, throwing `ValidationError` with field-keyed errors
+   (→ 422); persist; return the fully-mapped `MappedItem` so the app reconciles
+   it without a follow-up sync.
+6. **Test like `acme/mapping.test.ts`**: pure mapping cases (status coercion,
+   native states, attributes), bidirectional push round-trips, and the
+   validation rejections.
 
 ## Wiring the app to this service
 
