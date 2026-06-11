@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
+import { ValidationError } from './lib/validate.js';
 import { CONNECTORS, getConnector } from './registry.js';
 import type { CreateItemRequest, PushRequest, ReleaseConnectorPayload, ValidateRequest } from './contract.js';
 
@@ -81,8 +82,12 @@ export function createApp(): Hono {
   app.post('/releases/:id/items', createItemHandler);
 
   // Turn thrown errors (e.g. mapping/fetch failures) into clean JSON responses.
+  // Connector validation failures become the contract's 422 ValidationProblem.
   app.onError((err, c) => {
     if (err instanceof HTTPException) return err.getResponse();
+    if (err instanceof ValidationError) {
+      return c.json({ error: err.message, fieldErrors: err.fieldErrors }, 422);
+    }
     const message = err instanceof Error ? err.message : 'Internal error';
     return c.json({ error: message }, 500);
   });

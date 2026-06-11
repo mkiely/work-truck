@@ -12,6 +12,7 @@
 import type { Connector, CreateItemInput } from '../types.js';
 import { checkRequired } from '../types.js';
 import { filterAttributes } from '../../lib/attributes.js';
+import { catalogCreateErrors, ValidationError } from '../../lib/validate.js';
 import type { ContractStatus, MappedItem, MappedRelease, PushItemChange, PushResult } from '../../contract.js';
 import type { AcmeTicket } from './fixtures.js';
 import { ACME_ITEM_TYPES, ACME_STATUSES } from './itemTypes.js';
@@ -81,6 +82,18 @@ export const AcmeConnector: Connector = {
   async createItem(config, req: CreateItemInput): Promise<MappedItem> {
     const v = await this.validate(config);
     if (!v.ok) throw new Error(v.error ?? 'Invalid connector config');
+
+    // The service is the validation authority: generic catalog checks first,
+    // then Acme's own cross-field rule — exactly the kind of backend knowledge
+    // a declared FieldSpec can't express and the app can't pre-validate.
+    const type = ACME_ITEM_TYPES.find((t) => t.id === req.type);
+    const fieldErrors = catalogCreateErrors(type, req);
+    if (req.type === 'acme_bug' && req.fields?.severity === 'critical' && !String(req.fields?.description ?? '').trim()) {
+      fieldErrors.push({ field: 'description', message: 'Critical bugs require reproduction steps' });
+    }
+    if (fieldErrors.length > 0) {
+      throw new ValidationError(`Acme rejected the new item (${fieldErrors.length} field error${fieldErrors.length !== 1 ? 's' : ''})`, fieldErrors);
+    }
 
     const warehouse = readWarehouse();
     const n = 900 + warehouse.seq++;

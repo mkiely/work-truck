@@ -31,6 +31,11 @@ export type AttributeBag = Schemas['AttributeBag'];
 export type StatusDef = Schemas['StatusDef'];
 /** An item's native workflow state (denormalized id + label, mirrors itemType). */
 export type StatusRef = Schemas['StatusRef'];
+
+/** One field-level validation failure (422 ValidationProblem body). */
+export type FieldError = Schemas['FieldError'];
+/** Body of a 422 response from createItem/push. */
+export type ValidationProblem = Schemas['ValidationProblem'];
 export type ConnectorMeta = Schemas['ConnectorMeta'];
 export type ValidateResult = Schemas['ValidateResult'];
 
@@ -44,4 +49,4 @@ export type PushResult = Schemas['PushResult'];
 export type CreateItemRequest = Schemas['CreateItemRequest'];
 
 /** Must match `info.version` in openapi.yaml — versions the wire contract with the app. */
-export const SYNC_CONTRACT_VERSION = '0.11.0';
+export const SYNC_CONTRACT_VERSION = '0.12.0';

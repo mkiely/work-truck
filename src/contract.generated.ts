@@ -284,6 +284,18 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /** @description One field-level validation failure. */
+        FieldError: {
+            /** @description The offending input: a FieldSpec.key for scalar/enum fields, or the ref field's key for unresolved/missing refs. */
+            field: string;
+            /** @description Human-readable, form-displayable. */
+            message: string;
+        };
+        /** @description Body of a 422 response. `error` summarizes; `fieldErrors` (when present) pins failures to specific inputs so the app's form can mark them inline instead of showing one opaque toast. */
+        ValidationProblem: {
+            error: string;
+            fieldErrors?: components["schemas"]["FieldError"][];
+        };
         ValidateResult: {
             ok: boolean;
             error?: string;
@@ -430,6 +442,15 @@ export interface operations {
                     "application/json": components["schemas"]["PushResult"];
                 };
             };
+            /** @description One or more changes failed the service's validation. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationProblem"];
+                };
+            };
         };
     };
     createItem: {
@@ -454,6 +475,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MappedItem"];
+                };
+            };
+            /** @description The request failed validation. The service is the validation authority — it checks the catalog's declared constraints AND its backend's conditional/cross-field rules, which the app cannot know. fieldErrors lets the form mark the offending inputs. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationProblem"];
                 };
             };
         };

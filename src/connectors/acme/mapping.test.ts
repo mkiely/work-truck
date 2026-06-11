@@ -150,7 +150,8 @@ describe('AcmeConnector bidirectional behavior', () => {
       extWorkStreamId: 'MOD-CHK',
       extSprintId: null,
       extAssigneeId: null,
-      fields: { subject: 'Crash on submit', severity: 'critical' },
+      // description present: Acme's cross-field rule requires repro steps on critical bugs.
+      fields: { subject: 'Crash on submit', description: 'Repro: submit twice.', severity: 'critical' },
     });
     expect(created.attributes).toEqual({ severity: 'critical' });
 
@@ -158,6 +159,30 @@ describe('AcmeConnector bidirectional behavior', () => {
     const synced = await AcmeConnector.fetchAndMap({});
     const again = synced.items.find((i) => i.externalId === created.externalId)!;
     expect(again.attributes).toEqual({ severity: 'critical' });
+  });
+
+  it('createItem rejects catalog violations with field-keyed errors (422 path)', async () => {
+    const { ValidationError } = await import('../../lib/validate.js');
+    // Missing required subject + workStream + severity, plus the cross-field rule:
+    // a critical bug without reproduction steps.
+    const bad = AcmeConnector.createItem!({}, {
+      type: 'acme_bug',
+      extWorkStreamId: null,
+      extSprintId: null,
+      extAssigneeId: null,
+      fields: { severity: 'critical' },
+    });
+    await expect(bad).rejects.toBeInstanceOf(ValidationError);
+    const err = (await bad.catch((e) => e)) as InstanceType<typeof ValidationError>;
+    expect(err.fieldErrors.map((fe: { field: string }) => fe.field).sort()).toEqual(['description', 'subject', 'workStream']);
+
+    // Invalid enum value is field-pinned too.
+    const badEnum = AcmeConnector.createItem!({}, {
+      type: 'acme_bug',
+      extWorkStreamId: 'MOD-CHK', extSprintId: null, extAssigneeId: null,
+      fields: { subject: 'X', severity: 'apocalyptic' },
+    });
+    await expect(badEnum).rejects.toMatchObject({ fieldErrors: [{ field: 'severity' }] });
   });
 
   it('createItem allocates an id/key, persists, and returns a reconcilable item', async () => {
