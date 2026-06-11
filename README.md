@@ -28,12 +28,6 @@ reject invalid requests with **422** (`ValidationProblem`: a summary + field-key
 errors) by throwing `ValidationError` from `src/lib/validate.ts` — the server's
 error wrapper does the mapping.
 
-> **Spec note:** the OpenAPI spec describes the write routes with an id
-> (`/releases/{id}/sync|push|items`), but the app's actual client calls the id-less
-> forms (see `release-tracker/src/sync/client.ts`). Consumer-driven means we conform to
-> what the app *sends*, so we serve the id-less routes and also serve the `/:id/` forms
-> for spec-compatibility. The spec/app should be reconciled.
-
 Wire types are generated from the app-owned OpenAPI spec — they are never hand-copied.
 
 ## Stack
@@ -106,6 +100,12 @@ capability. To add a backend, mirror its structure:
 6. **Test like `acme/mapping.test.ts`**: pure mapping cases (status coercion,
    native states, attributes), bidirectional push round-trips, and the
    validation rejections.
+7. **Run the conformance suite**: add `<type>/conformance.test.ts` calling
+   `describeConnectorContract('<type>', YourConnector, { reset: ... })`
+   (`src/connectors/conformance.ts`) — a backend-agnostic baseline covering meta
+   shape, `fetchAndMap` invariants (canonical statuses, status vocabulary,
+   attribute catalog), and push/createItem round-trips + the 422 path. Pass
+   `reset` if your connector holds in-process state (see `acme/warehouse.ts`).
 
 ## Wiring the app to this service
 
@@ -129,6 +129,7 @@ src/
   registry.ts             # CONNECTORS map + getConnector()
   connectors/
     types.ts              # Connector interface (+ optional push/createItem) + checkRequired()
+    conformance.ts        # describeConnectorContract() — generic contract conformance suite
     acme/                 # the REFERENCE connector: a stateful in-process DEV backend that
                           # exercises every contract capability (sync, push incl. status +
                           # attributes, createItem, item-type catalog, status vocabulary).
@@ -139,6 +140,7 @@ src/
       itemTypes.ts        # Acme's item-type catalog + status vocabulary
       mapping.ts          # pure: raw Acme <-> contract (status coercion both ways)
       mapping.test.ts     # mapping + push + createItem unit tests
+      conformance.test.ts # describeConnectorContract('acme', AcmeConnector, ...)
   lib/
     http.ts               # fetch + Basic-auth helper (HTTP connectors)
     exec.ts               # run a CLI + parse JSON stdout (CLI connectors)

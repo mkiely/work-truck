@@ -41,22 +41,18 @@ export function createApp(): Hono {
     return c.json(await conn.validate(body.config ?? {}));
   });
 
-  // POST /releases/sync — the app's real call (no id; body { connector }).
-  // POST /releases/:id/sync — the OpenAPI spec form. Both delegate to one handler.
-  const syncHandler = async (c: Context) => {
+  // POST /releases/sync — body { connector }.
+  app.post('/releases/sync', async (c: Context) => {
     const body = await c.req.json<{ connector: ReleaseConnectorPayload }>();
     const connector = body.connector;
     if (!connector?.type) return c.json({ error: 'Missing connector.type' }, 400);
     const conn = getConnector(connector.type);
     if (!conn) return c.json({ error: 'Unknown connector' }, 404);
     return c.json(await conn.fetchAndMap(connector.config ?? {}));
-  };
-  app.post('/releases/sync', syncHandler);
-  app.post('/releases/:id/sync', syncHandler);
+  });
 
-  // POST /releases/push — the app's real call (no id; body { connector, changes }).
-  // POST /releases/:id/push — the OpenAPI spec form. Both delegate to one handler.
-  const pushHandler = async (c: Context) => {
+  // POST /releases/push — body { connector, changes }.
+  app.post('/releases/push', async (c: Context) => {
     const body = await c.req.json<PushRequest>();
     const connector = body.connector;
     if (!connector?.type) return c.json({ error: 'Missing connector.type' }, 400);
@@ -64,22 +60,17 @@ export function createApp(): Hono {
     if (!conn) return c.json({ error: 'Unknown connector' }, 404);
     if (!conn.push) return c.json({ error: 'Connector does not support push' }, 400);
     return c.json(await conn.push(connector.config ?? {}, body.changes ?? []));
-  };
-  app.post('/releases/push', pushHandler);
-  app.post('/releases/:id/push', pushHandler);
+  });
 
-  // POST /releases/items — create a work item (no id; body { connector, ...createInput }).
-  // POST /releases/:id/items — the OpenAPI spec form. Both delegate to one handler.
-  const createItemHandler = async (c: Context) => {
+  // POST /releases/items — body { connector, ...createInput }.
+  app.post('/releases/items', async (c: Context) => {
     const { connector, ...req } = await c.req.json<CreateItemRequest>();
     if (!connector?.type) return c.json({ error: 'Missing connector.type' }, 400);
     const conn = getConnector(connector.type);
     if (!conn) return c.json({ error: 'Unknown connector' }, 404);
     if (!conn.createItem) return c.json({ error: 'Connector does not support item creation' }, 400);
     return c.json(await conn.createItem(connector.config ?? {}, req));
-  };
-  app.post('/releases/items', createItemHandler);
-  app.post('/releases/:id/items', createItemHandler);
+  });
 
   // Turn thrown errors (e.g. mapping/fetch failures) into clean JSON responses.
   // Connector validation failures become the contract's 422 ValidationProblem.
