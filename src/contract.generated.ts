@@ -123,6 +123,8 @@ export interface components {
             attributes?: components["schemas"]["AttributeBag"];
             fields: {
                 name: string;
+                /** @description Absolute URL to this work stream (epic) in the external system, opened in a new tab so users can jump from the app to the source of truth. The connector owns URL construction. Null or omitted when the backend exposes no addressable page for the stream. Mirrors the item-level `url`. */
+                url?: string | null;
                 /** @description Build/release label this work stream belongs to, when it differs from the release being synced (e.g. "Orion 1.5") — i.e. the stream was carried in from a prior release rather than planned for this one. Null (or omitted) for streams native to the current release. Mirrors the item-level `build` field; lets the app hide carried-in streams. */
                 build?: string | null;
             };
@@ -166,10 +168,13 @@ export interface components {
                 key: string;
                 subject: string;
                 description: string;
+                /** @description Absolute URL to this work item in the external system (e.g. the issue page), opened in a new tab so users can jump from the app to the source of truth. The connector owns URL construction. Null or omitted when the backend exposes no addressable page for the item. */
+                url?: string | null;
                 status: components["schemas"]["Status"];
                 /** @description The item's native workflow state, when the connector declares a status vocabulary. Must be one of ConnectorMeta.statuses (its category must equal this item's `status`). Omit/null when the backend has no richer workflow than the canonical five. */
                 statusNative?: components["schemas"]["StatusRef"] | null;
-                points: number;
+                /** @description Story-point estimate. Null or omitted when the item has not yet been estimated; the app treats null the same as 0 for capacity math. */
+                points?: number | null;
                 /** @description Optional build/release label for patch items originating from a prior release (e.g. "Orion 1.5"). Set by the connector when the item's fix version differs from the current release. Null for native items. */
                 build?: string | null;
                 /**
@@ -226,7 +231,7 @@ export interface components {
              */
             enumRef?: "status";
             /**
-             * @description Optional semantic tag for fields that map to well-known app concepts. Lets the app recognize a field regardless of `key` (e.g. Jira's customfield_10016 with role=points) — used for serialization + control choice.
+             * @description Optional semantic tag for fields that map to well-known app concepts. Lets the app recognize a field regardless of `key` (e.g. Acme's customfield_10016 with role=points) — used for serialization + control choice.
              * @enum {string}
              */
             role?: "subject" | "description" | "points" | "status";
@@ -234,6 +239,11 @@ export interface components {
             hint?: string;
             /** @description kind=string: long-form text (data hint; registry → textarea). */
             multiline?: boolean;
+            /**
+             * @description For role=description: the body format of items of this type, mirroring the per-item WorkItem.descriptionFormat. Gives create-time an authoritative source (no item exists yet) so the registry can pick a rich-text control for html. Default text.
+             * @enum {string}
+             */
+            format?: "text" | "html";
             /** @description kind=string: secret value (data hint; registry → masked input). */
             sensitive?: boolean;
             /** @description Choices for kind=enum (connector-defined). */
@@ -255,16 +265,16 @@ export interface components {
         };
         /** @description One work-item type the connector emits, with its full field catalog. Lists every field (creatable and/or writeable), each declared once. The app derives the create form (creatable fields), push capability (writeable fields), and edit lock-state from this single source. */
         ConnectorItemType: {
-            /** @description Connector-native type id, e.g. jira_story. */
+            /** @description Connector-native type id, e.g. acme_story. */
             id: string;
             /** @description Display label, e.g. Story. */
             label: string;
             fields: components["schemas"]["FieldSpec"][];
         };
         ConnectorMeta: {
-            /** @description e.g. 'jira' */
+            /** @description e.g. 'acme' */
             type: string;
-            /** @description e.g. 'Jira' */
+            /** @description e.g. 'Acme' */
             label: string;
             configFields: components["schemas"]["ConnectorConfigField"][];
             /** @description The connector's work-item type catalog. Absent or empty means no item types are exposed: nothing is creatable (the app hides "New work item") and nothing is writeable. */
@@ -308,9 +318,18 @@ export interface components {
             externalId: string;
             /** @description Only writeable fields that are locally dirty. */
             fields: {
-                points?: number;
+                /** @description New subject. Only sent when the item's type declares a writeable field with role=subject. */
+                subject?: string;
+                /** @description New description (plain text or HTML per the item's descriptionFormat). Only sent when the item's type declares a writeable field with role=description. */
+                description?: string;
+                /** @description New point estimate, or null to clear the estimate. */
+                points?: number | null;
                 /** @description External sprint id, or null for backlog. */
                 extSprintId?: string | null;
+                /** @description External work-stream (epic) id, or null. Only sent when the item's type declares a writeable ref field targeting workStream. */
+                extWorkStreamId?: string | null;
+                /** @description External assignee (member) id, or null for unassigned. Only sent when the item's type declares a writeable ref field targeting member. */
+                extAssigneeId?: string | null;
                 /** @description Native status id (a StatusDef.id from the connector's vocabulary) to transition the item to. Only sent when the item's type declares a writeable status field; the service must validate the id against its vocabulary before writing. */
                 statusId?: string;
                 /** @description Dirty vocabulary values, keyed by FieldSpec.key. Only fields the item type declares writeable. The service must validate against its catalog (declared key, coercible kind, enum membership) before writing to the backend. */
