@@ -107,6 +107,67 @@ capability. To add a backend, mirror its structure:
    attribute catalog), and push/createItem round-trips + the 422 path. Pass
    `reset` if your connector holds in-process state (see `acme/warehouse.ts`).
 
+## Hosting a private connector (out-of-tree)
+
+work-truck is also an installable host: a **private repo** can depend on it, implement
+one `Connector`, and serve it alongside the built-ins — no fork, no changes here. The
+dependency chain extends the existing one (this service already pins and serves the
+release-tracker SPA), so the private repo yields the *entire* app:
+
+```
+private repo  →  work-truck (git dep)  →  release-tracker (pinned tarball)
+```
+
+Minimal private repo:
+
+```jsonc
+// package.json
+{
+  "type": "module",
+  "scripts": { "start": "tsx src/index.ts", "test": "vitest run" },
+  "dependencies": {
+    "work-truck": "github:mkiely/work-truck#main",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": { "vitest": "^4.0.0" }
+}
+```
+
+```ts
+// src/index.ts
+import { startServer } from 'work-truck';
+import { MyBackendConnector } from './connector.js';
+
+startServer({ connectors: [MyBackendConnector] });
+```
+
+```ts
+// src/conformance.test.ts — full contract compliance in your own CI
+import { describeConnectorContract } from 'work-truck/conformance';
+import { MyBackendConnector } from './connector.js';
+
+describeConnectorContract('my-backend', MyBackendConnector, { config: { /* ... */ } });
+```
+
+- `src/connector.ts` implements `Connector` — the interface, contract types, and lib
+  helpers (`getJson`, `runJson`, `ValidationError`, `catalogCreateErrors`,
+  `filterAttributes`, `checkRequired`, the storage seam) are all exported from the
+  `work-truck` root. Contract types ship with the package — never run `gen:contract`
+  downstream.
+- **A fresh clone runs the whole thing**: `npm install && npm start` in the host repo
+  brings up the SPA + sync service + private connector on one localhost origin.
+- **Pinning & updates**: npm's lockfile pins the exact work-truck commit, so installs
+  are reproducible. Absorb upstream with `npm update work-truck` and commit the
+  lockfile. (The `prepare` script builds `dist/` automatically on git-dependency
+  installs.) For a hard pin, depend on a tag (`#v0.2.0`) or a release tarball instead
+  of `#main`.
+- **Duplicate `meta.type`** between an injected connector and a built-in throws at
+  startup. Credentials stay in the private repo's env — never in `config`, never from
+  the app.
+- **Compliance**: see *Staying compliant from a private repo* in **CONNECTORS.md**
+  for the layered checks (types → conformance suite → connector-specific tests →
+  update flow) that keep an out-of-tree connector current with the contract.
+
 ## Wiring the app to this service
 
 In the app repo (`../release-tracker`), set in `.env.local`:
@@ -124,9 +185,12 @@ change needed. Start both dev servers and trigger **Sync** on a release.
 src/
   contract.generated.ts   # GENERATED from the app's openapi.yaml — do not edit
   contract.ts             # ergonomic aliases over the generated types
-  server.ts               # Hono app: the 5 routes + CORS + error wrapper
-  index.ts                # entrypoint (serve on PORT)
-  registry.ts             # CONNECTORS map + getConnector()
+  server.ts               # Hono app: the 5 routes + CORS + error wrapper; createApp({ connectors })
+  serve.ts                # startServer({ port, connectors }) — entrypoint for this repo AND private hosts
+  index.ts                # entrypoint (startServer() with built-ins)
+  sdk.ts                  # the public package surface (root export of `work-truck`)
+  registry.ts             # BUILTIN_CONNECTORS + buildRegistry() (throws on duplicate type)
+  server.test.ts          # host behavior: connector injection + duplicate-type failure
   connectors/
     types.ts              # Connector interface (+ optional push/createItem) + checkRequired()
     conformance.ts        # describeConnectorContract() — generic contract conformance suite
@@ -154,5 +218,7 @@ src/
    Keep mapping pure in a `mapping.ts`.
 2. Register it in `src/registry.ts`.
 
-The routes are backend-agnostic, so nothing else changes. See **CONNECTORS.md** for
-the patterns (HTTP, CLI, stateful dev backend) and the `MappedRelease` rules.
+The routes are backend-agnostic, so nothing else changes. Private/proprietary
+backends live out-of-tree instead — see **Hosting a private connector** above. See
+**CONNECTORS.md** for the patterns (HTTP, CLI, stateful dev backend) and the
+`MappedRelease` rules.

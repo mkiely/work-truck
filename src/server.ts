@@ -1,15 +1,20 @@
-// Hono app: the three contract routes, CORS for the app, and a JSON error wrapper.
+// Hono app: the contract routes, CORS for the app, and a JSON error wrapper.
 // Routes are backend-agnostic — they only touch the registry and the Connector
-// interface, so adding a backend never changes this file.
+// interface, so adding a backend never changes this file. Out-of-tree (private)
+// connectors are injected via `createApp({ connectors })` and served alongside
+// the built-ins.
 
 import { existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { cors } from 'hono/cors';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { HTTPException } from 'hono/http-exception';
 import { ValidationError } from './lib/validate.js';
-import { CONNECTORS, getConnector } from './registry.js';
+import { buildRegistry } from './registry.js';
+import type { Connector } from './connectors/types.js';
 import type { CreateItemRequest, PushRequest, ReleaseConnectorPayload, ValidateRequest } from './contract.js';
 
 // Explicit allowlist (comma-separated). Empty by default — see allowOrigin below.
@@ -28,23 +33,47 @@ function allowOrigin(origin: string): string | null {
 }
 
 // Where the bundled SPA lives. SERVE_APP overrides (e.g. a local `../release-tracker/dist`
-// build); otherwise default to the pinned `release-tracker` dependency's prebuilt dist.
-// Paths are relative to cwd — @hono/node-server's serveStatic does not accept absolute
-// roots — so run the service from the work-truck root (npm start does).
-const APP_DIST = process.env.SERVE_APP ?? 'node_modules/release-tracker/dist';
-const SERVE_APP = process.env.SERVE_APP !== undefined || existsSync(APP_DIST);
+// build); otherwise locate the pinned `release-tracker` dependency's prebuilt dist
+// wherever npm placed it (hoisted or nested — matters when work-truck is itself a
+// dependency of a private host repo). Paths are returned relative to cwd because
+// @hono/node-server's serveStatic does not accept absolute roots. Returns undefined
+// when no dist is present (pure dev API — static serving is skipped).
+function resolveAppDist(): string | undefined {
+  if (process.env.SERVE_APP !== undefined) return process.env.SERVE_APP;
+  try {
+    const require = createRequire(import.meta.url);
+    const pkgJson = require.resolve('release-tracker/package.json');
+    const dist = path.join(path.dirname(pkgJson), 'dist');
+    if (existsSync(dist)) return path.relative(process.cwd(), dist);
+  } catch {
+    // release-tracker not resolvable from here; fall through to the cwd-relative default.
+  }
+  const fallback = 'node_modules/release-tracker/dist';
+  return existsSync(fallback) ? fallback : undefined;
+}
 
-export function createApp(): Hono {
+export interface CreateAppOptions {
+  /** Out-of-tree connectors to serve alongside the built-ins. Duplicate `meta.type` throws. */
+  connectors?: Connector[];
+}
+
+export function createApp(options: CreateAppOptions = {}): Hono {
+  const registry = buildRegistry(options.connectors);
+  const getConnector = (type: string): Connector | undefined => registry[type];
+
+  const appDist = resolveAppDist();
+  const serveApp = appDist !== undefined;
+
   const app = new Hono();
 
   // When we serve the SPA ourselves (single-origin prod) CORS is unnecessary. Keep it
   // for the cross-origin dev path (vite :5173 → :8787) and whenever APP_ORIGIN is set.
-  if (!SERVE_APP || APP_ORIGINS.length || process.env.NODE_ENV !== 'production') {
+  if (!serveApp || APP_ORIGINS.length || process.env.NODE_ENV !== 'production') {
     app.use('*', cors({ origin: allowOrigin }));
   }
 
   // GET /connectors — advertise available connectors + the config each needs.
-  app.get('/connectors', (c) => c.json(Object.values(CONNECTORS).map((x) => x.meta)));
+  app.get('/connectors', (c) => c.json(Object.values(registry).map((x) => x.meta)));
 
   // POST /connectors/:type/validate — check config (and later creds) before saving.
   app.post('/connectors/:type/validate', async (c) => {
@@ -88,9 +117,9 @@ export function createApp(): Hono {
   // Serve the bundled SPA on the same origin as the API (registered AFTER the contract
   // routes, so /connectors and /releases/* always win). Unknown GETs fall through to
   // index.html for client-side routing. No-op when no app dist is present (pure dev API).
-  if (SERVE_APP) {
-    app.use('/assets/*', serveStatic({ root: APP_DIST }));
-    app.get('*', serveStatic({ path: 'index.html', root: APP_DIST }));
+  if (serveApp) {
+    app.use('/assets/*', serveStatic({ root: appDist }));
+    app.get('*', serveStatic({ path: 'index.html', root: appDist }));
   }
 
   // Turn thrown errors (e.g. mapping/fetch failures) into clean JSON responses.
