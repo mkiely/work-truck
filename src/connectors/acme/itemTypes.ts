@@ -7,7 +7,7 @@
 // Acme keeps points + sprint writeable (to exercise push) and the identity/ref fields
 // create-once. The `id`s here are what AcmeTicket.typeId references (fixtures.ts).
 
-import type { ConnectorItemType, StatusDef } from '../../contract.js';
+import type { ConnectorItemType, FieldSpec, StatusDef } from '../../contract.js';
 
 // Acme's status vocabulary: the native workflow states its tickets actually move
 // through, each mapped onto a canonical category. Note two states share Under
@@ -65,6 +65,7 @@ export const ACME_ITEM_TYPES: ConnectorItemType[] = [
       // Vocabulary field (no role/ref): required at creation, round-trips via
       // attributes (filterAttributes in mapping.ts), and — being writeable —
       // accepts pushed updates through PushItemChange.fields.attributes.
+      // `filterable` surfaces it as a filter facet in the consumer's item views.
       {
         key: 'severity',
         label: 'Severity',
@@ -72,6 +73,7 @@ export const ACME_ITEM_TYPES: ConnectorItemType[] = [
         required: true,
         creatable: true,
         writeable: true,
+        filterable: true,
         options: [
           { value: 'low', label: 'Low' },
           { value: 'medium', label: 'Medium' },
@@ -79,6 +81,24 @@ export const ACME_ITEM_TYPES: ConnectorItemType[] = [
           { value: 'critical', label: 'Critical' },
         ],
       },
+    ],
+  },
+];
+
+// Acme's work-stream field catalog: describes the keys mapAcme emits in
+// MappedWorkStream.attributes, exactly as itemTypes[].fields describes item
+// attributes. Flat — streams have no type dimension. Vocabulary-shaped only
+// (no role/ref/enumRef), read-only (no creatable/writeable). `filterable`
+// makes `track` a stream-level facet in the consumer's release overview.
+export const ACME_STREAM_FIELDS: FieldSpec[] = [
+  {
+    key: 'track',
+    label: 'Track',
+    kind: 'enum',
+    filterable: true,
+    options: [
+      { value: 'product', label: 'Product' },
+      { value: 'platform', label: 'Platform' },
     ],
   },
 ];

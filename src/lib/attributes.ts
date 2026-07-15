@@ -5,7 +5,7 @@
 // trust the bag without re-validating. Backend-agnostic; lives in lib so every
 // connector shares one boundary rule.
 
-import type { AttributeBag, ConnectorItemType, FieldSpec } from '../contract.js';
+import type { AttributeBag, FieldSpec } from '../contract.js';
 
 /** Vocabulary (attribute) field: no semantic role, not a ref, not an app-canonical
  *  enum. Mirrors the consumer's definition (release-tracker lib/connectorFields). */
@@ -34,17 +34,19 @@ function coerce(f: FieldSpec, raw: unknown): string | number | boolean | null | 
 }
 
 /**
- * Build the AttributeBag for one item from its catalog type and the backend's raw
- * field values (keyed by FieldSpec.key). Undeclared keys and uncoercible values are
- * dropped. Returns undefined when nothing survives, so the wire stays clean.
+ * Build the AttributeBag for one entity from its declared field catalog and the
+ * backend's raw field values (keyed by FieldSpec.key). Works for any catalog
+ * scope: an item type's `fields` or ConnectorMeta.workStreamFields. Undeclared
+ * keys and uncoercible values are dropped. Returns undefined when nothing
+ * survives, so the wire stays clean.
  */
 export function filterAttributes(
-  type: ConnectorItemType | undefined,
+  fields: FieldSpec[] | undefined,
   raw: Record<string, unknown>,
 ): AttributeBag | undefined {
-  if (!type) return undefined;
+  if (!fields) return undefined;
   const bag: AttributeBag = {};
-  for (const f of type.fields) {
+  for (const f of fields) {
     if (!isAttributeField(f) || !(f.key in raw)) continue;
     const v = coerce(f, raw[f.key]);
     if (v !== undefined) bag[f.key] = v;

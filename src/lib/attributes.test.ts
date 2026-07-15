@@ -28,21 +28,29 @@ describe('isAttributeField', () => {
 
 describe('filterAttributes', () => {
   it('keeps only declared vocabulary keys', () => {
-    const bag = filterAttributes(bug, { severity: 'high', subject: 'leak', rawBackendJunk: 'x' });
+    const bag = filterAttributes(bug.fields, { severity: 'high', subject: 'leak', rawBackendJunk: 'x' });
     expect(bag).toEqual({ severity: 'high' });
   });
 
   it('coerces values to the declared kind and drops uncoercible ones', () => {
-    const bag = filterAttributes(bug, { reproRate: '3', regression: 'true', foundIn: 7, severity: 'not-an-option' });
+    const bag = filterAttributes(bug.fields, { reproRate: '3', regression: 'true', foundIn: 7, severity: 'not-an-option' });
     expect(bag).toEqual({ reproRate: 3, regression: true, foundIn: '7' });
   });
 
   it('passes explicit null through, drops undefined/empty', () => {
-    expect(filterAttributes(bug, { severity: null, foundIn: '' })).toEqual({ severity: null });
+    expect(filterAttributes(bug.fields, { severity: null, foundIn: '' })).toEqual({ severity: null });
   });
 
-  it('returns undefined for an unknown type or an empty result', () => {
+  it('returns undefined for an unknown catalog or an empty result', () => {
     expect(filterAttributes(undefined, { severity: 'high' })).toBeUndefined();
-    expect(filterAttributes(bug, { rawBackendJunk: 'x' })).toBeUndefined();
+    expect(filterAttributes(bug.fields, { rawBackendJunk: 'x' })).toBeUndefined();
+  });
+
+  it('works over a flat stream-field catalog (no item type involved)', () => {
+    const streamFields = [
+      { key: 'track', kind: 'enum' as const, filterable: true, options: [{ value: 'product', label: 'Product' }] },
+    ];
+    expect(filterAttributes(streamFields, { track: 'product', junk: 'x' })).toEqual({ track: 'product' });
+    expect(filterAttributes(streamFields, {})).toBeUndefined();
   });
 });

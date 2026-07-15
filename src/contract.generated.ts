@@ -262,6 +262,15 @@ export interface components {
             creatable?: boolean;
             /** @description Pushable on an existing item. Default false. */
             writeable?: boolean;
+            /** @description The app should offer this field as a filter facet (a chip group) in its item/stream views. Only valid on vocabulary fields — no `role`, not `kind: ref`, no `enumRef` (canonical concepts already have built-in facets) — and only for kinds that facet well: enum, boolean, and string (discrete observed values; number/date are continuous and do not facet). Facet options derive from declared enum `options` intersected with observed values; the app is free to suppress a facet that would offer fewer than two choices. Default false. */
+            filterable?: boolean;
+            /**
+             * @description For filterable string fields with dense value spaces: collapse observed values into facet options by leading segment — split each value on `facetSeparator` (default '.'), group by the first segment, and one option matches every value in its group ('264' matches 264, 264.1, 264.2). Values without the separator form their own group. Omit for exact per-value options. Bounded strategy enum by design (no connector-supplied patterns); new strategies are additive.
+             * @enum {string}
+             */
+            facetGroup?: "prefix";
+            /** @description Separator for facetGroup=prefix. Default '.'. */
+            facetSeparator?: string;
         };
         /** @description One work-item type the connector emits, with its full field catalog. Lists every field (creatable and/or writeable), each declared once. The app derives the create form (creatable fields), push capability (writeable fields), and edit lock-state from this single source. */
         ConnectorItemType: {
@@ -281,6 +290,8 @@ export interface components {
             itemTypes?: components["schemas"]["ConnectorItemType"][];
             /** @description The connector's status vocabulary: every native workflow state it can emit, each mapped to a canonical category. Drives the app's status edit options (when an item type declares a writeable status field) and validates pushed statusId values. Absent or empty means the backend uses the canonical five directly and items carry no statusNative. */
             statuses?: components["schemas"]["StatusDef"][];
+            /** @description Field catalog for work streams — describes the keys a connector emits in MappedWorkStream.attributes, exactly as itemTypes[].fields describes MappedItem.attributes. Streams have no type dimension, so this is a flat list. Entries must be vocabulary-shaped (no role, no ref target, no enumRef); `creatable`/`writeable` are meaningless here and must be omitted or false — stream attributes are read-only. A field with filterable:true becomes a stream-level facet in the app (a lens over which streams are shown). Absent or empty means the connector declares no stream vocabulary; connectors must not emit undeclared MappedWorkStream.attributes keys. */
+            workStreamFields?: components["schemas"]["FieldSpec"][];
         };
         /** @description A release's binding to a backend. config holds only non-secret routing params. */
         ReleaseConnector: {

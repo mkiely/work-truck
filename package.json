@@ -11,13 +11,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "gen:contract": "openapi-typescript node_modules/release-tracker/sync-contract/openapi.yaml -o src/contract.generated.ts"
+    "gen:contract": "openapi-typescript node_modules/release-tracker/sync-contract/openapi.yaml -o src/contract.generated.ts",
+    "gen:contract:local": "openapi-typescript ../release-tracker/packages/sync-contract/openapi.yaml -o src/contract.generated.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
     "execa": "^9.5.2",
     "hono": "^4.6.14",
-    "release-tracker": "https://github.com/mkiely/release-tracker/releases/download/v0.2.1/release-tracker-0.2.1.tgz",
+    "release-tracker": "https://github.com/mkiely/release-tracker/releases/download/v0.3.0/release-tracker-0.3.0.tgz",
     "zod": "^3.24.1"
   },
   "devDependencies": {

@@ -5,7 +5,7 @@
 import type { ContractStatus, MappedItem, MappedRelease } from '../../contract.js';
 import { filterAttributes } from '../../lib/attributes.js';
 import type { AcmeTicket, AcmeWarehouse } from './fixtures.js';
-import { ACME_ITEM_TYPES, ACME_STATUSES, acmeTypeLabel } from './itemTypes.js';
+import { ACME_ITEM_TYPES, ACME_STATUSES, ACME_STREAM_FIELDS, acmeTypeLabel } from './itemTypes.js';
 
 /**
  * Coerce a raw Acme state string to one of the contract's canonical statuses. Never pass
@@ -50,7 +50,7 @@ export function mapTicket(t: AcmeTicket): MappedItem {
   // Vocabulary values pass through the boundary filter: only catalog-declared
   // attribute fields, coerced to their declared kind.
   const attributes = filterAttributes(
-    ACME_ITEM_TYPES.find((it) => it.id === t.typeId),
+    ACME_ITEM_TYPES.find((it) => it.id === t.typeId)?.fields,
     { severity: t.severity },
   );
   // Native workflow state: declared states map exactly (id + label + category);
@@ -70,6 +70,7 @@ export function mapTicket(t: AcmeTicket): MappedItem {
       statusNative: statusDef ? { id: statusDef.id, label: statusDef.label } : null,
       points: typeof t.estimate === 'number' ? t.estimate : 0,
       itemType: { id: t.typeId, label: acmeTypeLabel(t.typeId) },
+      ...(t.build != null && { build: t.build }),
     },
   };
 }
@@ -86,10 +87,16 @@ export function mapAcme(raw: AcmeWarehouse): MappedRelease {
     })),
   };
 
-  const workStreams = raw.modules.map((m) => ({
-    externalId: m.id,
-    fields: { name: m.name },
-  }));
+  // Stream vocabulary passes through the same boundary filter as item attributes,
+  // against the flat stream-field catalog (ACME_STREAM_FIELDS).
+  const workStreams = raw.modules.map((m) => {
+    const attributes = filterAttributes(ACME_STREAM_FIELDS, { track: m.track });
+    return {
+      externalId: m.id,
+      ...(attributes && { attributes }),
+      fields: { name: m.name, ...(m.build != null && { build: m.build }) },
+    };
+  });
 
   const sprints = raw.cycles.map((c) => ({
     externalId: c.id,

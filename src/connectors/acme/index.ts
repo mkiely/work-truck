@@ -15,7 +15,7 @@ import { filterAttributes } from '../../lib/attributes.js';
 import { catalogCreateErrors, ValidationError } from '../../lib/validate.js';
 import type { ContractStatus, MappedItem, MappedRelease, PushItemChange, PushResult } from '../../contract.js';
 import type { AcmeTicket } from './fixtures.js';
-import { ACME_ITEM_TYPES, ACME_STATUSES } from './itemTypes.js';
+import { ACME_ITEM_TYPES, ACME_STATUSES, ACME_STREAM_FIELDS } from './itemTypes.js';
 import { mapAcme, mapTicket, toRawState } from './mapping.js';
 import { readWarehouse, writeWarehouse } from './warehouse.js';
 
@@ -32,6 +32,7 @@ export const AcmeConnector: Connector = {
     ],
     itemTypes: ACME_ITEM_TYPES,
     statuses: ACME_STATUSES,
+    workStreamFields: ACME_STREAM_FIELDS,
   },
 
   async validate(config) {
@@ -69,7 +70,7 @@ export const AcmeConnector: Connector = {
       }
       if (change.fields.attributes) {
         const type = ACME_ITEM_TYPES.find((it) => it.id === ticket.typeId);
-        const valid = filterAttributes(type, change.fields.attributes) ?? {};
+        const valid = filterAttributes(type?.fields, change.fields.attributes) ?? {};
         if ('severity' in valid) ticket.severity = valid.severity == null ? undefined : String(valid.severity);
       }
       pushed++;

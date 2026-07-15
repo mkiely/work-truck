@@ -36,11 +36,36 @@ describe('mapAcme', () => {
   });
 
   it('maps modules/cycles into work streams/sprints', () => {
-    expect(out.workStreams[0]).toEqual({ externalId: 'MOD-CHK', fields: { name: 'Checkout API' } });
+    expect(out.workStreams[0]).toEqual({
+      externalId: 'MOD-CHK',
+      attributes: { track: 'product' },
+      fields: { name: 'Checkout API' },
+    });
     expect(out.sprints[0]).toEqual({
       externalId: 'CYC-1',
       fields: { name: 'Iteration 1', startISO: '2026-04-13', endISO: '2026-04-26' },
     });
+  });
+
+  it('emits declared stream vocabulary as attributes; omits the bag when unset', () => {
+    const bill = out.workStreams.find((w) => w.externalId === 'MOD-BILL')!;
+    expect(bill.attributes).toEqual({ track: 'platform' });
+    // MOD-SRCH has no track — no attributes bag, so the consumer's "(none)"
+    // stream-facet option has data behind it.
+    const srch = out.workStreams.find((w) => w.externalId === 'MOD-SRCH')!;
+    expect(srch.attributes).toBeUndefined();
+  });
+
+  it('passes carried-in builds through on streams and items', () => {
+    const srch = out.workStreams.find((w) => w.externalId === 'MOD-SRCH')!;
+    expect(srch.fields.build).toBe('264');
+    const chk = out.workStreams.find((w) => w.externalId === 'MOD-CHK')!;
+    expect(chk.fields.build).toBeUndefined();
+    // Dotted point builds — the consumer's prefix-grouped build facet collapses
+    // these under one '264' chip.
+    expect(out.items.find((i) => i.externalId === 'ACME-110')!.fields.build).toBe('264');
+    expect(out.items.find((i) => i.externalId === 'ACME-111')!.fields.build).toBe('264.1');
+    expect(out.items.find((i) => i.externalId === 'ACME-101')!.fields.build).toBeUndefined();
   });
 
   it('maps a ticket with assignee + itemType', () => {

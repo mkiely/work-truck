@@ -26,6 +26,12 @@ export interface AcmeTeam {
 export interface AcmeModule {
   id: string;
   name: string;
+  /** Delivery track — vocabulary, not canonical; surfaces via stream attributes
+   *  (catalog: ACME_STREAM_FIELDS.track). */
+  track?: string;
+  /** Build this module was carried in from, when it differs from the current
+   *  release (-> MappedWorkStream.fields.build). */
+  build?: string;
 }
 
 /** A sprint / iteration. */
@@ -50,6 +56,9 @@ export interface AcmeTicket {
   assigneeId: string | null; // -> extAssigneeId
   /** Bug severity — vocabulary, not canonical; surfaces via attributes (catalog: acme_bug.severity). */
   severity?: string;
+  /** Build this ticket was carried in from (-> MappedItem.fields.build). Dotted
+   *  point builds ('264.1') exercise the consumer's prefix-grouped build facet. */
+  build?: string;
 }
 
 /** The entire Acme backend, as one document. This is what the warehouse persists. */
@@ -81,9 +90,11 @@ export function seedWarehouse(): AcmeWarehouse {
       { id: 'USR-PETE', name: 'Pete O.', nonContributing: true },
     ],
     modules: [
-      { id: 'MOD-CHK', name: 'Checkout API' },
-      { id: 'MOD-SRCH', name: 'Search Revamp' },
-      { id: 'MOD-BILL', name: 'Billing Migration' },
+      { id: 'MOD-CHK', name: 'Checkout API', track: 'product' },
+      // Carried in from the 264 build line; `track` left unset so the consumer's
+      // "(none)" stream-facet option has data behind it.
+      { id: 'MOD-SRCH', name: 'Search Revamp', build: '264' },
+      { id: 'MOD-BILL', name: 'Billing Migration', track: 'platform' },
     ],
     cycles: [
       { id: 'CYC-1', name: 'Iteration 1', start: '2026-04-13', end: '2026-04-26' },
@@ -96,8 +107,10 @@ export function seedWarehouse(): AcmeWarehouse {
       // 'qa' and 'in_review' both map to the Under Review category — the native
       // labels ("QA Verify" vs "In Review") are what the vocabulary preserves.
       { id: 'ACME-103', typeId: 'acme_story', title: '3-D Secure handshake', body: '', state: 'qa', estimate: 8, moduleId: 'MOD-CHK', cycleId: 'CYC-2', assigneeId: 'USR-WEI' },
-      { id: 'ACME-110', typeId: 'acme_story', title: 'Typeahead suggestions', body: '', state: 'done', estimate: 3, moduleId: 'MOD-SRCH', cycleId: 'CYC-1', assigneeId: 'USR-DEVI' },
-      { id: 'ACME-111', typeId: 'acme_task', title: 'Relevance ranking model', body: '', state: 'blocked', estimate: 5, moduleId: 'MOD-SRCH', cycleId: 'CYC-2', assigneeId: 'USR-TOM' },
+      // Carried-in items keep their origin build ('264' line, dotted point builds) —
+      // the consumer's build facets group them under one '264' chip.
+      { id: 'ACME-110', typeId: 'acme_story', title: 'Typeahead suggestions', body: '', state: 'done', estimate: 3, moduleId: 'MOD-SRCH', cycleId: 'CYC-1', assigneeId: 'USR-DEVI', build: '264' },
+      { id: 'ACME-111', typeId: 'acme_task', title: 'Relevance ranking model', body: '', state: 'blocked', estimate: 5, moduleId: 'MOD-SRCH', cycleId: 'CYC-2', assigneeId: 'USR-TOM', build: '264.1' },
       { id: 'ACME-120', typeId: 'acme_story', title: 'Dual-write ledger', body: '', state: 'in_progress', estimate: 8, moduleId: 'MOD-BILL', cycleId: 'CYC-2', assigneeId: 'USR-ADA' },
       { id: 'ACME-121', typeId: 'acme_story', title: 'Proration engine', body: '', state: 'todo', estimate: 5, moduleId: 'MOD-BILL', cycleId: 'CYC-3', assigneeId: 'USR-MARCO' },
       // Unscheduled (no cycle) -> lands in the backlog. Unassigned.

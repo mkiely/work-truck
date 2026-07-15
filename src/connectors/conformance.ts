@@ -35,6 +35,20 @@ function kindMatches(kind: FieldSpec['kind'], value: unknown): boolean {
   }
 }
 
+/** The facet-related FieldSpec constraints the contract documents (0.17.0):
+ *  filterable only on vocabulary enum/boolean/string; facetGroup only on
+ *  filterable strings. Shared by the itemTypes and workStreamFields checks. */
+function expectFacetHintsWellFormed(f: FieldSpec): void {
+  if (f.filterable) {
+    expect(isAttributeField(f), `filterable field "${f.key}" must be a vocabulary field (no role/ref/enumRef)`).toBe(true);
+    expect(['enum', 'boolean', 'string'], `filterable field "${f.key}" must be enum/boolean/string`).toContain(f.kind);
+  }
+  if (f.facetGroup) {
+    expect(f.filterable, `facetGroup on "${f.key}" requires filterable:true`).toBe(true);
+    expect(f.kind, `facetGroup on "${f.key}" requires kind=string`).toBe('string');
+  }
+}
+
 /** A representative value for a creatable field, used to build a generically-valid create request. */
 function sampleValue(f: FieldSpec): unknown {
   switch (f.kind) {
@@ -97,7 +111,8 @@ export interface ConformanceOptions {
 /**
  * Generic contract-conformance cases for one Connector. Mirrors the invariants the
  * sync-contract OpenAPI spec promises: meta shape, fetchAndMap output (canonical
- * statuses, status vocabulary, attribute catalog), and push/createItem round-trips.
+ * statuses, status vocabulary, attribute catalogs — item and work-stream), and
+ * push/createItem round-trips.
  */
 export function describeConnectorContract(name: string, connector: Connector, opts: ConformanceOptions = {}): void {
   const config = opts.config ?? {};
@@ -130,7 +145,26 @@ export function describeConnectorContract(name: string, connector: Connector, op
             expect(['string', 'number', 'boolean', 'date', 'enum', 'ref']).toContain(f.kind);
             if (f.kind === 'ref') expect(['workStream', 'sprint', 'member']).toContain(f.target);
             if (f.kind === 'enum' && !f.enumRef) expect((f.options ?? []).length).toBeGreaterThan(0);
+            expectFacetHintsWellFormed(f);
           }
+        }
+      });
+
+      it('workStreamFields (if any) are well-formed, read-only vocabulary specs', () => {
+        const fields = connector.meta.workStreamFields ?? [];
+        const keys = fields.map((f) => f.key);
+        expect(new Set(keys).size).toBe(keys.length);
+
+        for (const f of fields) {
+          expect(f.key).toBeTruthy();
+          // Vocabulary-shaped only: streams have no canonical concepts to map.
+          expect(isAttributeField(f), `workStreamFields "${f.key}" must be vocabulary-shaped (no role/ref/enumRef)`).toBe(true);
+          expect(['string', 'number', 'boolean', 'date', 'enum']).toContain(f.kind);
+          if (f.kind === 'enum') expect((f.options ?? []).length).toBeGreaterThan(0);
+          // Stream attributes are read-only on the wire.
+          expect(f.creatable ?? false, `workStreamFields "${f.key}" must not be creatable`).toBe(false);
+          expect(f.writeable ?? false, `workStreamFields "${f.key}" must not be writeable`).toBe(false);
+          expectFacetHintsWellFormed(f);
         }
       });
 
@@ -212,6 +246,20 @@ export function describeConnectorContract(name: string, connector: Connector, op
           for (const [key, value] of Object.entries(item.attributes)) {
             const field = type!.fields.find((f) => f.key === key);
             expect(field, `attribute "${key}" must be declared on item type "${typeId}"`).toBeTruthy();
+            expect(isAttributeField(field!)).toBe(true);
+            expect(kindMatches(field!.kind, value)).toBe(true);
+          }
+        }
+      });
+
+      it('work-stream attributes (if present) are declared in meta.workStreamFields, kind-coerced', async () => {
+        const release = await connector.fetchAndMap(config);
+        const declared = connector.meta.workStreamFields ?? [];
+        for (const ws of release.workStreams) {
+          if (!ws.attributes) continue;
+          for (const [key, value] of Object.entries(ws.attributes)) {
+            const field = declared.find((f) => f.key === key);
+            expect(field, `stream attribute "${key}" must be declared in meta.workStreamFields`).toBeTruthy();
             expect(isAttributeField(field!)).toBe(true);
             expect(kindMatches(field!.kind, value)).toBe(true);
           }
