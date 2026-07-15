@@ -1,6 +1,6 @@
 {
   "name": "work-truck",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Local sync service for the Release Tracker app. Anti-corruption layer that translates external backends (HTTP or CLI) into the app-owned Sync Contract.",
@@ -22,7 +22,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && rm -rf dist/app && cp -R node_modules/release-tracker/dist dist/app",
     "prepare": "npm run build",
     "start:prod": "NODE_ENV=production tsx src/index.ts",
     "test": "vitest run",
@@ -35,7 +35,6 @@
     "@hono/node-server": "^1.13.7",
     "execa": "^9.5.2",
     "hono": "^4.6.14",
-    "release-tracker": "https://github.com/mkiely/release-tracker/releases/download/v0.3.0/release-tracker-0.3.0.tgz",
     "zod": "^3.24.1"
   },
   "peerDependencies": {
@@ -49,6 +48,7 @@
   "devDependencies": {
     "@types/node": "^22.10.2",
     "openapi-typescript": "^7.4.4",
+    "release-tracker": "https://github.com/mkiely/release-tracker/releases/download/v0.3.0/release-tracker-0.3.0.tgz",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^4.1.0"

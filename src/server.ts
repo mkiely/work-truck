@@ -7,6 +7,7 @@
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { cors } from 'hono/cors';
@@ -32,14 +33,20 @@ function allowOrigin(origin: string): string | null {
   return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ? origin : null;
 }
 
-// Where the bundled SPA lives. SERVE_APP overrides (e.g. a local `../release-tracker/dist`
-// build); otherwise locate the pinned `release-tracker` dependency's prebuilt dist
-// wherever npm placed it (hoisted or nested — matters when work-truck is itself a
-// dependency of a private host repo). Paths are returned relative to cwd because
-// @hono/node-server's serveStatic does not accept absolute roots. Returns undefined
-// when no dist is present (pure dev API — static serving is skipped).
+// Where the bundled SPA lives, first match wins:
+//   1. SERVE_APP env override (e.g. a local `../release-tracker/dist` build);
+//   2. the `app/` dir the build embeds next to this module (`npm run build` copies the
+//      SPA into dist/app, so the packed artifact is fully self-contained — consumers
+//      never fetch release-tracker themselves);
+//   3. the release-tracker devDependency's prebuilt dist, wherever npm placed it
+//      (in-repo dev runs from src/, where no embedded app/ exists).
+// Paths are returned relative to cwd because @hono/node-server's serveStatic does not
+// accept absolute roots. Returns undefined when no dist is present (pure dev API —
+// static serving is skipped).
 function resolveAppDist(): string | undefined {
   if (process.env.SERVE_APP !== undefined) return process.env.SERVE_APP;
+  const embedded = path.join(path.dirname(fileURLToPath(import.meta.url)), 'app');
+  if (existsSync(embedded)) return path.relative(process.cwd(), embedded);
   try {
     const require = createRequire(import.meta.url);
     const pkgJson = require.resolve('release-tracker/package.json');

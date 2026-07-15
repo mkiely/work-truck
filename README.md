@@ -111,14 +111,15 @@ capability. To add a backend, mirror its structure:
 
 work-truck is also an installable host: a **private repo** can depend on it, implement
 one `Connector`, and serve it alongside the built-ins — no fork, no changes here. The
-dependency chain extends the existing one (this service already pins and serves the
-release-tracker SPA), so the private repo yields the *entire* app:
+installable artifact is **fully self-contained**: the build embeds the release-tracker
+SPA into `dist/app`, so a host repo installs one package and gets the *entire* app
+(SPA + sync service + its connector) with no further external fetches:
 
 ```
-private repo  →  work-truck (git dep)  →  release-tracker (pinned tarball)
+private repo  →  work-truck (git dep or vendored tarball, SPA embedded)
 ```
 
-Minimal private repo:
+Minimal private repo (vendored artifact):
 
 ```jsonc
 // package.json
@@ -126,7 +127,7 @@ Minimal private repo:
   "type": "module",
   "scripts": { "start": "tsx src/index.ts", "test": "vitest run" },
   "dependencies": {
-    "work-truck": "github:mkiely/work-truck#main",
+    "work-truck": "file:vendor/work-truck-0.2.0.tgz",
     "tsx": "^4.19.2"
   },
   "devDependencies": { "vitest": "^4.0.0" }
@@ -156,11 +157,17 @@ describeConnectorContract('my-backend', MyBackendConnector, { config: { /* ... *
   downstream.
 - **A fresh clone runs the whole thing**: `npm install && npm start` in the host repo
   brings up the SPA + sync service + private connector on one localhost origin.
-- **Pinning & updates**: npm's lockfile pins the exact work-truck commit, so installs
-  are reproducible. Absorb upstream with `npm update work-truck` and commit the
-  lockfile. (The `prepare` script builds `dist/` automatically on git-dependency
-  installs.) For a hard pin, depend on a tag (`#v0.2.0`) or a release tarball instead
-  of `#main`.
+- **Two ways to depend on work-truck** — pick one per host repo:
+  - **Vendored tarball (default, shown above)**: run `npm pack` in a work-truck
+    checkout, commit the tarball under `vendor/`, depend on it via `file:`. The host
+    repo is fully self-contained — nothing but normal registry packages is fetched
+    at install. Updating = swap in a freshly packed tarball and bump the `file:`
+    path — an explicit, reviewable artifact change.
+  - **Git dependency**: `"work-truck": "github:mkiely/work-truck#main"` (or a
+    `#vX.Y.Z` tag for a hard pin). npm's lockfile pins the exact commit, so installs
+    are reproducible; absorb upstream with `npm update work-truck` and commit the
+    lockfile. The `prepare` script builds `dist/` automatically on install. Use this
+    where git deps are allowed and you want one-command updates.
 - **Duplicate `meta.type`** between an injected connector and a built-in throws at
   startup. Credentials stay in the private repo's env — never in `config`, never from
   the app.

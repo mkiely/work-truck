@@ -104,9 +104,10 @@ to your connector.
 ## Out-of-tree (private) connectors
 
 A proprietary backend's connector lives in its own (private) repo that depends on
-work-truck (`"work-truck": "github:mkiely/work-truck#main"` — the lockfile pins the
-commit; `npm update work-truck` absorbs upstream). Everything above still applies;
-only the wiring changes:
+work-truck — either a vendored `file:` tarball (`npm pack` output committed under
+`vendor/`; works everywhere) or a git dependency on `#main`/a tag (one-command
+updates where git deps are allowed); see the README's **Hosting a private connector**
+for both. Everything above still applies; only the wiring changes:
 
 - **Imports** come from the package instead of relative paths: the `Connector`
   interface, contract types, and the lib helpers (`getJson`, `runJson`,
@@ -165,12 +166,13 @@ its own checks. Each layer catches a different class of drift:
    `src/connectors/acme/mapping.test.ts` does — keep mapping pure (no I/O) so those
    tests need no backend at all.
 
-4. **Absorbing upstream is a re-run, not a rewrite.** The lockfile pins work-truck,
-   so contract drift only arrives when you choose: `npm update work-truck`, then
-   typecheck + tests. A contract bump surfaces as compile errors (shape changes) or
-   new conformance failures (behavioral changes) — fix those and you're current. If
-   the app and service are mid-transition, pin a tag instead of `#main` until you're
-   ready.
+4. **Absorbing upstream is a re-run, not a rewrite.** Your dependency is pinned
+   (the committed `vendor/` tarball, or the lockfile for a git dep), so contract
+   drift only arrives when you choose: swap in a freshly packed tarball (or
+   `npm update work-truck`), then typecheck + tests. A contract bump surfaces as
+   compile errors (shape changes) or new conformance failures (behavioral changes) —
+   fix those and you're current. If the app and service are mid-transition, stay on
+   the older artifact until you're ready.
 
 5. **Smoke against the real app last.** `npm start`, then the curl flow above and a
    real **Sync / Push / New work item** in the served SPA — the app itself is the
