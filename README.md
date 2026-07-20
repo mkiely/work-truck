@@ -174,6 +174,8 @@ describeConnectorContract('my-backend', MyBackendConnector, { config: { /* ... *
 - **Compliance**: see *Staying compliant from a private repo* in **CONNECTORS.md**
   for the layered checks (types → conformance suite → connector-specific tests →
   update flow) that keep an out-of-tree connector current with the contract.
+  CONNECTORS.md ships inside the package — read it from
+  `node_modules/work-truck/CONNECTORS.md`, no work-truck checkout needed.
 
 ## Wiring the app to this service
 

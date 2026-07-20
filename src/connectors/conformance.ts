@@ -18,6 +18,17 @@ import type { Connector, CreateItemInput } from './types.js';
 
 const CANONICAL_STATUSES = ['Not Started', 'In Progress', 'Under Review', 'Blocked', 'Complete'] as const;
 
+// Wire-canonical field keys: concepts the app already understands from
+// MappedItem.fields / MappedWorkStream.fields, deriving behavior from the canonical
+// slot with no catalog declaration (status → board columns + facet, points →
+// capacity math, itemType → type facet, build → patch marking, carried-stream
+// hiding, and built-in Build facets). A vocabulary (attribute) field must not reuse
+// these keys — map the value to its canonical slot instead; if a backend field is
+// genuinely unrelated (e.g. a CI build number), rename its key. See CONNECTORS.md
+// "Canonical concepts vs vocabulary attributes".
+const CANONICAL_ITEM_FIELD_KEYS = new Set(['key', 'subject', 'description', 'url', 'status', 'statusNative', 'points', 'build', 'itemType', 'descriptionFormat']);
+const CANONICAL_STREAM_FIELD_KEYS = new Set(['name', 'url', 'build']);
+
 /** True if `value`'s runtime type matches a FieldSpec's declared `kind` (or is null). */
 function kindMatches(kind: FieldSpec['kind'], value: unknown): boolean {
   if (value === null) return true;
@@ -40,7 +51,10 @@ function kindMatches(kind: FieldSpec['kind'], value: unknown): boolean {
  *  filterable strings. Shared by the itemTypes and workStreamFields checks. */
 function expectFacetHintsWellFormed(f: FieldSpec): void {
   if (f.filterable) {
-    expect(isAttributeField(f), `filterable field "${f.key}" must be a vocabulary field (no role/ref/enumRef)`).toBe(true);
+    expect(
+      isAttributeField(f),
+      `filterable field "${f.key}" must be a vocabulary field (no role/ref/enumRef) — canonical concepts already get built-in facets (status/type/member/build) from their canonical wire slot; map the value there and drop the filterable flag`,
+    ).toBe(true);
     expect(['enum', 'boolean', 'string'], `filterable field "${f.key}" must be enum/boolean/string`).toContain(f.kind);
   }
   if (f.facetGroup) {
@@ -165,6 +179,24 @@ export function describeConnectorContract(name: string, connector: Connector, op
           expect(f.creatable ?? false, `workStreamFields "${f.key}" must not be creatable`).toBe(false);
           expect(f.writeable ?? false, `workStreamFields "${f.key}" must not be writeable`).toBe(false);
           expectFacetHintsWellFormed(f);
+        }
+      });
+
+      it('vocabulary fields do not shadow canonical wire fields', () => {
+        for (const type of connector.meta.itemTypes ?? []) {
+          for (const f of type.fields) {
+            if (!isAttributeField(f)) continue;
+            expect(
+              CANONICAL_ITEM_FIELD_KEYS.has(f.key),
+              `vocabulary field "${f.key}" on item type "${type.id}" shadows the canonical item field of the same name — emit the value as item.fields.${f.key} instead (the app derives built-in behavior from the canonical slot, no FieldSpec needed); if the backend field is genuinely unrelated, rename its key`,
+            ).toBe(false);
+          }
+        }
+        for (const f of connector.meta.workStreamFields ?? []) {
+          expect(
+            CANONICAL_STREAM_FIELD_KEYS.has(f.key),
+            `workStreamFields "${f.key}" shadows the canonical work-stream field of the same name — emit the value as workStream.fields.${f.key} instead; if the backend field is genuinely unrelated, rename its key`,
+          ).toBe(false);
         }
       });
 

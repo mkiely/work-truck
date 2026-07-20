@@ -15,6 +15,15 @@ import type {
 /** Create-item request minus `connector` (the server resolves that from the route). */
 export type CreateItemInput = Omit<CreateItemRequest, 'connector'>;
 
+/**
+ * One backend = one Connector. The core mapping rule: **canonical concepts map to
+ * their fixed wire slots** — status, points, itemType, build, url, subject/description
+ * and the ext*Id refs on MappedItem / MappedWorkStream — and the app derives behavior
+ * from them for free (board columns, capacity math, type/member facets, patch marking
+ * and built-in Build facets). Declare vocabulary FieldSpecs (and `filterable`) only
+ * for fields the app has NO canonical concept of; never emit a concept both ways.
+ * Full rules and patterns: CONNECTORS.md (shipped in the npm package next to dist/).
+ */
 export interface Connector {
   /** Advertised by GET /connectors — type, label, and the config the app's form needs. */
   meta: ConnectorMeta;

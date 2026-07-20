@@ -3,6 +3,10 @@
 // `Connector` against these types/helpers and boots via `startServer`. The
 // conformance suite is deliberately NOT here — it imports vitest, so it ships on
 // the separate `work-truck/conformance` subpath (see package.json `exports`).
+//
+// Mapping rules and patterns live in CONNECTORS.md, which ships in this package
+// (node_modules/work-truck/CONNECTORS.md) — start there, especially "Canonical
+// concepts vs vocabulary attributes".
 
 export { createApp } from './server.js';
 export type { CreateAppOptions } from './server.js';

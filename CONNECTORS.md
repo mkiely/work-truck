@@ -59,6 +59,42 @@ interface Connector {
 - **`item.fields.itemType`** (`{ id, label }`) tags each item with its connector-native
   type so the app can match it to a `meta.itemTypes` entry.
 
+## Canonical concepts vs vocabulary attributes
+
+The most common connector design decision: which channel does a backend field belong
+to? The app understands two kinds of data, and they are **mutually exclusive**.
+
+**Canonical concepts** live in fixed wire slots. Map the value there and stop — the
+app derives behavior from the slot with **no catalog declaration at all**:
+
+| Concept | Wire slot | The app derives |
+|---|---|---|
+| Status | `item.fields.status` (+ `statusNative`) | board columns, status facet, edit options |
+| Points | `item.fields.points` | capacity math |
+| Item type | `item.fields.itemType` | type facet, catalog matching |
+| Assignee | `item.extAssigneeId` | roster resolution, member facet |
+| Build | `item.fields.build` / `workStream.fields.build` | patch-item marking, carried-in stream hiding, built-in Build facets (item + stream scope) |
+| URL | `item.fields.url` / `workStream.fields.url` | jump-to-source links |
+| Subject / description | `item.fields.subject` / `.description` | card + detail content |
+
+**Vocabulary attributes** are everything the app has *no* concept of (severity,
+track, component, …): declare a FieldSpec in the catalog, emit values through
+`filterAttributes`, and opt into faceting with `filterable: true`.
+
+Corollaries the conformance suite enforces:
+
+- `filterable` is rejected on non-vocabulary fields — canonical concepts already have
+  built-in facets (status, type, member, build); there is nothing to declare.
+- A vocabulary field whose `key` shadows a canonical field name (`build`, `points`,
+  `status`, …) fails with a pointer to the right slot. If a backend field is
+  genuinely unrelated (e.g. a CI build number), rename its key.
+- Never emit the same concept both ways.
+
+One `build` nuance: the built-in Build facet only renders when it *partitions* the
+view, so set `build` **only** on carried-in/patch entities and leave it null on
+native ones. Stamping every item with the current release's own label makes the
+facet useless and mis-marks the whole release as patches.
+
 ## The reference dev backend (Acme)
 
 `src/connectors/acme/` is the standard always-on DEV backend. Instead of fetching from a
