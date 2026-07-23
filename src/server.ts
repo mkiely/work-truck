@@ -126,6 +126,7 @@ export function createApp(options: CreateAppOptions = {}): Hono {
   // index.html for client-side routing. No-op when no app dist is present (pure dev API).
   if (serveApp) {
     app.use('/assets/*', serveStatic({ root: appDist }));
+    app.get('/summary.html', serveStatic({ path: 'summary.html', root: appDist }));
     app.get('*', serveStatic({ path: 'index.html', root: appDist }));
   }
 
