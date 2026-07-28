@@ -271,6 +271,8 @@ export interface components {
             facetGroup?: "prefix";
             /** @description Separator for facetGroup=prefix. Default '.'. */
             facetSeparator?: string;
+            /** @description Presentation hint: keep this field out of the app's item/stream tables. It still syncs, still appears on the item detail, and is still offered as a facet when `filterable` — it simply never becomes a column. For vocabulary fields a type declares but that aren't worth a column across every item in the release (long free text, niche per-type detail). Only meaningful on vocabulary fields — canonical fields have fixed columns of their own. Orthogonal to `creatable` and `writeable`: a detailOnly field is still editable and pushable where those allow. Default false. */
+            detailOnly?: boolean;
         };
         /** @description One work-item type the connector emits, with its full field catalog. Lists every field (creatable and/or writeable), each declared once. The app derives the create form (creatable fields), push capability (writeable fields), and edit lock-state from this single source. */
         ConnectorItemType: {
