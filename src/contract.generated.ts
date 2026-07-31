@@ -182,6 +182,16 @@ export interface components {
                  * @enum {string}
                  */
                 descriptionFormat?: "text" | "html";
+                /**
+                 * Format: date-time
+                 * @description When the item was created in the backend, as a full ISO-8601 instant (e.g. 2026-07-30T14:03:22Z) — NOT the bare date the app uses elsewhere. Connector-owned and read-only: the app never writes or pushes it. Null or omitted when the backend records no creation time.
+                 */
+                createdAt?: string | null;
+                /**
+                 * Format: date-time
+                 * @description When the item last changed in the backend, as a full ISO-8601 instant. Connector-owned and read-only, on the same terms as createdAt. Emit the backend's own modification stamp — do NOT stamp it at fetch time, since the app treats a moved updatedAt as evidence the item genuinely changed.
+                 */
+                updatedAt?: string | null;
                 /** @description Connector-assigned work item type (e.g. Bug, Story, Task). Read-only in the app. The `id` preserves the connector's native type key for future item-creation support; `label` is the display string shown in the UI. */
                 itemType?: {
                     /** @description Connector-native type ID; null if the connector does not expose one. */
