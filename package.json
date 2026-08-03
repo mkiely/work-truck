@@ -1,6 +1,6 @@
 {
   "name": "work-truck",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "private": true,
   "type": "module",
   "description": "Local sync service for the Release Tracker app. Anti-corruption layer that translates external backends (HTTP or CLI) into the app-owned Sync Contract.",
