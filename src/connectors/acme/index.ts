@@ -13,7 +13,7 @@ import type { Connector, CreateItemInput } from '../types.js';
 import { checkRequired } from '../types.js';
 import { filterAttributes } from '../../lib/attributes.js';
 import { catalogCreateErrors, ValidationError } from '../../lib/validate.js';
-import type { ContractStatus, MappedItem, MappedRelease, PushItemChange, PushResult } from '../../contract.js';
+import type { ContractStatus, MappedItem, MappedRelease, PushItemChange, PushItemError, PushResult } from '../../contract.js';
 import type { AcmeTicket } from './fixtures.js';
 import { ACME_ITEM_TYPES, ACME_STATUSES, ACME_STREAM_FIELDS } from './itemTypes.js';
 import { mapAcme, mapTicket, toRawState } from './mapping.js';
@@ -49,14 +49,35 @@ export const AcmeConnector: Connector = {
     const byId = new Map(warehouse.tickets.map((t) => [t.id, t]));
 
     let pushed = 0;
-    let failed = 0;
-    const errors: string[] = [];
+    const errors: PushItemError[] = [];
 
     for (const change of changes) {
       const ticket = byId.get(change.externalId);
       if (!ticket) {
-        failed++;
-        errors.push(`Unknown item ${change.externalId}`);
+        // No fieldErrors: nothing the user typed is wrong, the item is simply gone
+        // (deleted upstream, or the app is holding a stale externalId).
+        errors.push({
+          externalId: change.externalId,
+          message: `No item ${change.externalId} in Acme — it may have been deleted since the last sync`,
+        });
+        continue;
+      }
+
+      // Acme's own cross-field rule, and the reason a push needs per-item errors at
+      // all: a closed ticket's cycle is frozen. This is backend knowledge a declared
+      // FieldSpec cannot express and the app cannot pre-validate, so it can only
+      // surface as a rejection — which is useless unless it says WHICH item and
+      // WHICH field. Checked before anything is mutated, so a rejected item is
+      // rejected whole rather than half-applied.
+      const movingCycle = 'extSprintId' in change.fields && (change.fields.extSprintId ?? null) !== (ticket.cycleId ?? null);
+      if (movingCycle && ticket.state === 'done') {
+        errors.push({
+          externalId: change.externalId,
+          message: `${change.externalId} is Done — a closed ticket's cycle is fixed in Acme`,
+          // 'sprint' is the app's canonical dirty-field name for this concept, so
+          // the app can put the message on the control the user actually changed.
+          fieldErrors: [{ field: 'sprint', message: 'Reopen the ticket before moving it to another cycle' }],
+        });
         continue;
       }
       // Only writeable fields per the item-type catalog: points (estimate), sprint
@@ -77,7 +98,9 @@ export const AcmeConnector: Connector = {
     }
 
     if (pushed > 0) writeWarehouse(warehouse);
-    return { pushed, failed, errors };
+    // `failed` is derived, never counted separately — the contract says the two
+    // must agree and a hand-incremented counter is how they stop agreeing.
+    return { pushed, failed: errors.length, errors };
   },
 
   async createItem(config, req: CreateItemInput): Promise<MappedItem> {

@@ -372,6 +372,26 @@ export function describeConnectorContract(name: string, connector: Connector, op
         expect(result.failed).toBeGreaterThanOrEqual(1);
       });
 
+      it('attributes every failure to the item it failed on', async () => {
+        // The contract's whole reason for PushItemError: a push is batched, so an
+        // error that names no item leaves the app unable to say which of the user's
+        // edits did not land. `failed` must also agree with the list it summarizes.
+        const result = await push(config, [{ externalId: 'NOPE-DOES-NOT-EXIST', fields: { points: 1 } }]);
+        expect(result.failed).toBe(result.errors.length);
+        for (const err of result.errors) {
+          expect(typeof err.externalId).toBe('string');
+          expect(err.externalId.length).toBeGreaterThan(0);
+          // The summary has to stand alone — fieldErrors is optional detail.
+          expect(typeof err.message).toBe('string');
+          expect(err.message.length).toBeGreaterThan(0);
+          for (const fe of err.fieldErrors ?? []) {
+            expect(typeof fe.field).toBe('string');
+            expect(typeof fe.message).toBe('string');
+          }
+        }
+        expect(result.errors.map((e) => e.externalId)).toContain('NOPE-DOES-NOT-EXIST');
+      });
+
       it('ignores an undeclared statusId / attribute key without failing the item', async () => {
         const release = await connector.fetchAndMap(config);
         const item = release.items[0];

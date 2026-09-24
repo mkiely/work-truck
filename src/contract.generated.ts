@@ -363,10 +363,21 @@ export interface components {
             connector: components["schemas"]["ReleaseConnector"];
             changes: components["schemas"]["PushItemChange"][];
         };
+        /** @description One item the push could not write, and why. Replaces the bare strings `PushResult.errors` used to carry: those named no item, so the app could only ever show the service's prose and the user had to work out which of their edits had not landed. `externalId` is what makes a failure actionable — it is the same id the app sent in the matching PushItemChange, so the app can put the message back on the item it belongs to rather than in a toast. */
+        PushItemError: {
+            /** @description The failing item, echoed from its PushItemChange. */
+            externalId: string;
+            /** @description Human-readable summary of why this item failed. Shown whether or not `fieldErrors` is present, so it must stand alone. */
+            message: string;
+            /** @description Field-level detail, where the service can attribute the failure to specific inputs. Same shape the 422 ValidationProblem uses for createItem, so the app renders both through one path. Absent or empty when the failure isn't attributable to a field (a stale item, a permission error, a transport fault). */
+            fieldErrors?: components["schemas"]["FieldError"][];
+        };
+        /** @description Outcome of a batched push. A push is NOT all-or-nothing: `pushed` and `failed` can both be non-zero, and a caller that reports success on `pushed > 0` alone will silently swallow the failures. */
         PushResult: {
             pushed: number;
+            /** @description Must equal `errors.length`. */
             failed: number;
-            errors: string[];
+            errors: components["schemas"]["PushItemError"][];
         };
         /** @description Request to create one work item. `type` is a CreatableItemType.id. The ref ids carry the well-known stream/sprint/member selections (resolved by the app from local entities to externalIds); `fields` carries the remaining well-known scalars (subject, description, points, status) and any custom field values, keyed by FieldSpec.key. */
         CreateItemRequest: {
