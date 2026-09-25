@@ -46,7 +46,9 @@ export type ValidateRequest = Schemas['ValidateRequest'];
 export type PushItemChange = Schemas['PushItemChange'];
 export type PushRequest = Schemas['PushRequest'];
 export type PushResult = Schemas['PushResult'];
+/** One item a push could not write, carrying the id of the item it failed on. */
+export type PushItemError = Schemas['PushItemError'];
 export type CreateItemRequest = Schemas['CreateItemRequest'];
 
 /** Must match `info.version` in openapi.yaml — versions the wire contract with the app. */
-export const SYNC_CONTRACT_VERSION = '0.17.0';
+export const SYNC_CONTRACT_VERSION = '0.20.0';

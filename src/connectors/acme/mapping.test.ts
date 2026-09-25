@@ -166,7 +166,56 @@ describe('AcmeConnector bidirectional behavior', () => {
     ]);
     expect(res.pushed).toBe(1);
     expect(res.failed).toBe(1);
-    expect(res.errors[0]).toContain('NOPE-999');
+    // Attributed to the item, not just described: this is what lets the app put the
+    // message back on the work item instead of into a toast.
+    expect(res.errors[0].externalId).toBe('NOPE-999');
+    expect(res.errors[0].message).toContain('NOPE-999');
+  });
+
+  it('rejects a cycle move on a closed ticket, and says which field', async () => {
+    // ACME-101 is seeded 'done'. The rule is backend knowledge no FieldSpec can
+    // express, so it can only surface as a rejection — which is why the rejection
+    // has to carry the field.
+    const res = await AcmeConnector.push!({}, [
+      { externalId: 'ACME-101', fields: { extSprintId: 'CYC-3' } },
+    ]);
+    expect(res.pushed).toBe(0);
+    expect(res.failed).toBe(1);
+    expect(res.errors[0].externalId).toBe('ACME-101');
+    expect(res.errors[0].fieldErrors).toEqual([
+      { field: 'sprint', message: 'Reopen the ticket before moving it to another cycle' },
+    ]);
+  });
+
+  it('leaves a rejected item completely unwritten, not half-applied', async () => {
+    // The estimate rides along with the rejected cycle move; neither may land.
+    const before = await AcmeConnector.fetchAndMap({});
+    const original = before.items.find((i) => i.externalId === 'ACME-101')!.fields.points;
+
+    const res = await AcmeConnector.push!({}, [
+      { externalId: 'ACME-101', fields: { points: 99, extSprintId: 'CYC-3' } },
+    ]);
+    expect(res.failed).toBe(1);
+
+    const after = await AcmeConnector.fetchAndMap({});
+    expect(after.items.find((i) => i.externalId === 'ACME-101')!.fields.points).toBe(original);
+  });
+
+  it('allows a cycle move on a ticket that is still open', async () => {
+    // ACME-102 is 'in_progress' — the rule is about closed tickets, not all pushes.
+    const res = await AcmeConnector.push!({}, [
+      { externalId: 'ACME-102', fields: { extSprintId: 'CYC-3' } },
+    ]);
+    expect(res).toEqual({ pushed: 1, failed: 0, errors: [] });
+  });
+
+  it('accepts a no-op cycle push on a closed ticket — nothing is moving', async () => {
+    const release = await AcmeConnector.fetchAndMap({});
+    const closed = release.items.find((i) => i.externalId === 'ACME-101')!;
+    const res = await AcmeConnector.push!({}, [
+      { externalId: 'ACME-101', fields: { extSprintId: closed.extSprintId ?? null } },
+    ]);
+    expect(res.failed).toBe(0);
   });
 
   it('createItem persists vocabulary fields and round-trips them as attributes', async () => {
