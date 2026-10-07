@@ -51,4 +51,4 @@ export type PushItemError = Schemas['PushItemError'];
 export type CreateItemRequest = Schemas['CreateItemRequest'];
 
 /** Must match `info.version` in openapi.yaml — versions the wire contract with the app. */
-export const SYNC_CONTRACT_VERSION = '0.20.0';
+export const SYNC_CONTRACT_VERSION = '0.21.0';

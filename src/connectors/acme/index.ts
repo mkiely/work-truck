@@ -94,6 +94,8 @@ export const AcmeConnector: Connector = {
         const valid = filterAttributes(type?.fields, change.fields.attributes) ?? {};
         if ('severity' in valid) ticket.severity = valid.severity == null ? undefined : String(valid.severity);
       }
+      // Acme's own modification stamp: a push is a real change in the backend.
+      ticket.updatedAt = new Date().toISOString();
       pushed++;
     }
 
@@ -121,6 +123,7 @@ export const AcmeConnector: Connector = {
 
     const warehouse = readWarehouse();
     const n = 900 + warehouse.seq++;
+    const now = new Date().toISOString();
     const fields = (req.fields ?? {}) as Record<string, unknown>;
     const num = (value: unknown): number => (Number.isFinite(Number(value)) ? Number(value) : 0);
 
@@ -137,13 +140,16 @@ export const AcmeConnector: Connector = {
       // Vocabulary: store the raw value; mapTicket's boundary filter validates it
       // against the catalog on the way back out.
       ...(typeof fields.severity === 'string' && fields.severity && { severity: fields.severity }),
+      // The contract carries no caller identity, so no author — only the stamps.
+      createdAt: now,
+      updatedAt: now,
     };
 
     warehouse.tickets.push(ticket);
     writeWarehouse(warehouse);
 
     // Return it mapped so the consumer reconciles it as a synced item (no follow-up sync).
-    return mapTicket(ticket);
+    return mapTicket(ticket, warehouse.members);
   },
 };
 

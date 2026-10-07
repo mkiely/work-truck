@@ -192,6 +192,8 @@ export interface components {
                  * @description When the item last changed in the backend, as a full ISO-8601 instant. Connector-owned and read-only, on the same terms as createdAt. Emit the backend's own modification stamp — do NOT stamp it at fetch time, since the app treats a moved updatedAt as evidence the item genuinely changed.
                  */
                 updatedAt?: string | null;
+                /** @description Display name of whoever created the item in the backend (a person's name, not an account id). Connector-owned and read-only: the app never writes or pushes it. Null or omitted when the backend records no author. */
+                createdBy?: string | null;
                 /** @description Connector-assigned work item type (e.g. Bug, Story, Task). Read-only in the app. The `id` preserves the connector's native type key for future item-creation support; `label` is the display string shown in the UI. */
                 itemType?: {
                     /** @description Connector-native type ID; null if the connector does not expose one. */

@@ -279,3 +279,48 @@ describe('AcmeConnector bidirectional behavior', () => {
     expect(synced.items.some((i) => i.externalId === created.externalId)).toBe(true);
   });
 });
+
+describe('acme item history (createdBy / createdAt / updatedAt)', () => {
+  beforeEach(() => resetWarehouse());
+
+  it('resolves the author to the member display name, never the account id', () => {
+    const raw = seedWarehouse();
+    const t = raw.tickets.find((x) => x.createdById === 'USR-ADA')!;
+    const item = mapAcme(raw).items.find((i) => i.externalId === t.id)!;
+    expect(item.fields.createdBy).toBe('Ada L.');
+  });
+
+  it('omits createdBy when the ticket has no author or the author left the roster', () => {
+    const raw = seedWarehouse();
+    const noAuthor = raw.tickets.find((x) => !x.createdById)!;
+    raw.tickets[0] = { ...raw.tickets[0], createdById: 'USR-GONE' };
+    const items = mapAcme(raw).items;
+    expect(items.find((i) => i.externalId === noAuthor.id)!.fields).not.toHaveProperty('createdBy');
+    expect(items[0].fields).not.toHaveProperty('createdBy');
+  });
+
+  it('passes the backend stamps through as ISO instants', () => {
+    const raw = seedWarehouse();
+    const item = mapAcme(raw).items[0];
+    expect(item.fields.createdAt).toBe(raw.tickets[0].createdAt);
+    expect(item.fields.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(Date.parse(item.fields.updatedAt!)).toBeGreaterThan(Date.parse(item.fields.createdAt!));
+  });
+
+  it('createItem stamps both instants and records no author', async () => {
+    const created = await AcmeConnector.createItem!({}, {
+      type: 'acme_task', extWorkStreamId: 'MOD-CHK', extSprintId: null, extAssigneeId: null,
+      fields: { subject: 'Stamped' },
+    });
+    expect(created.fields.createdAt).toBe(created.fields.updatedAt);
+    expect(created.fields).not.toHaveProperty('createdBy');
+  });
+
+  it('a push moves updatedAt but not createdAt — it is the backend that changed', async () => {
+    const before = (await AcmeConnector.fetchAndMap({})).items.find((i) => i.externalId === 'ACME-102')!;
+    await AcmeConnector.push!({}, [{ externalId: 'ACME-102', fields: { points: 13 } }]);
+    const after = (await AcmeConnector.fetchAndMap({})).items.find((i) => i.externalId === 'ACME-102')!;
+    expect(after.fields.createdAt).toBe(before.fields.createdAt);
+    expect(Date.parse(after.fields.updatedAt!)).toBeGreaterThan(Date.parse(before.fields.updatedAt!));
+  });
+});
