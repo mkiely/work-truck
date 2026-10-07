@@ -13,6 +13,7 @@ import type { Context } from 'hono';
 import { cors } from 'hono/cors';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { HTTPException } from 'hono/http-exception';
+import { enableBackup, type BackupOptions } from './backup/index.js';
 import { ValidationError } from './lib/validate.js';
 import { buildRegistry } from './registry.js';
 import type { Connector } from './connectors/types.js';
@@ -62,6 +63,12 @@ function resolveAppDist(): string | undefined {
 export interface CreateAppOptions {
   /** Out-of-tree connectors to serve alongside the built-ins. Duplicate `meta.type` throws. */
   connectors?: Connector[];
+  /**
+   * The app's durable backup (GET/PUT /backup). On by default; `false` turns it off,
+   * and the app then reports backup as unavailable. It holds an opaque copy of the
+   * app's data and never reaches a connector.
+   */
+  backup?: false | BackupOptions;
 }
 
 export function createApp(options: CreateAppOptions = {}): Hono {
@@ -76,7 +83,8 @@ export function createApp(options: CreateAppOptions = {}): Hono {
   // When we serve the SPA ourselves (single-origin prod) CORS is unnecessary. Keep it
   // for the cross-origin dev path (vite :5173 → :8787) and whenever APP_ORIGIN is set.
   if (!serveApp || APP_ORIGINS.length || process.env.NODE_ENV !== 'production') {
-    app.use('*', cors({ origin: allowOrigin }));
+    // ETag carries a backup's revision; a cross-origin page can't read it unless exposed.
+    app.use('*', cors({ origin: allowOrigin, exposeHeaders: ['ETag'] }));
   }
 
   // GET /connectors — advertise available connectors + the config each needs.
@@ -121,8 +129,18 @@ export function createApp(options: CreateAppOptions = {}): Hono {
     return c.json(await conn.createItem(connector.config ?? {}, req));
   });
 
+  // The app's backup — separate from syncing; see src/backup/store.ts. When it's off,
+  // say so with a 404 rather than letting the SPA fallback answer 200 with index.html.
+  if (options.backup !== false) {
+    enableBackup(app, allowOrigin, options.backup);
+  } else {
+    const disabled = (c: Context) => c.json({ error: 'Backup is disabled' }, 404);
+    app.all('/backup', disabled);
+    app.all('/backup/*', disabled);
+  }
+
   // Serve the bundled SPA on the same origin as the API (registered AFTER the contract
-  // routes, so /connectors and /releases/* always win). Unknown GETs fall through to
+  // routes, so /connectors, /releases/* and /backup always win). Unknown GETs fall through to
   // index.html for client-side routing. No-op when no app dist is present (pure dev API).
   if (serveApp) {
     app.use('/assets/*', serveStatic({ root: appDist }));

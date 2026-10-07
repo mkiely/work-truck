@@ -176,6 +176,11 @@ for both. Everything above still applies; only the wiring changes:
   Built-ins (Acme) stay available alongside; a duplicate `meta.type` throws at
   startup. `createApp({ connectors })` is the same seam without the listener, for
   tests or custom serving.
+- **The app's backup comes along** (`GET/PUT /backup`, files under
+  `~/.work-truck/backup/`). It is not part of the connector contract and never calls
+  your connector — it only keeps an opaque copy of the app's own data on disk. Nothing
+  to implement; pass `startServer({ connectors, backup: false })` to turn it off (the
+  app then shows its data as browser-only, with Export/Import JSON as the fallback).
 - **Verify** exactly as above — the curl commands work unchanged with your `type`,
   and the service also serves the release-tracker SPA on the same origin, so the
   full app is `npm start` away. Credentials stay in the private repo's env.

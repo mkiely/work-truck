@@ -11,6 +11,7 @@
 export { createApp } from './server.js';
 export type { CreateAppOptions } from './server.js';
 export { startServer } from './serve.js';
+export type { BackupOptions } from './backup/index.js';
 export type { StartServerOptions } from './serve.js';
 export { buildRegistry } from './registry.js';
 

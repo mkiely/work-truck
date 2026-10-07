@@ -92,6 +92,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/backup/meta": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revision and freshness of the stored backup — the app's cheap probe. */
+        get: operations["getBackupMeta"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The stored backup, exactly as last written. */
+        get: operations["getBackup"];
+        /**
+         * Replace the backup, guarded by the revision the writer last saw.
+         * @description Optimistic concurrency. Send `If-Match: "<rev>"` naming the revision being replaced, or `If-None-Match: *` for the first write. A stale revision is refused with 409 so two writers never silently overwrite each other. The body may be deflate-compressed (`Content-Encoding: deflate`).
+         */
+        put: operations["putBackup"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -392,6 +430,42 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** @description A backup of the app's whole persisted namespace. The service validates only this outer shape; `state` and `prefs` are opaque to it. */
+        BackupEnvelope: {
+            /** @enum {string} */
+            format: "release-tracker-backup";
+            formatVersion: number;
+            /**
+             * Format: date-time
+             * @description When the user last changed the backed-up data (not when it was sent).
+             */
+            savedAt: string;
+            /** @description The app's SCHEMA_VERSION of `state`. */
+            schemaVersion?: number;
+            state: {
+                [key: string]: unknown;
+            };
+            /** @description Every other app-owned storage key, as raw strings. */
+            prefs?: {
+                [key: string]: string;
+            };
+        };
+        BackupMeta: {
+            /** @description Monotonic revision; name it in If-Match to replace this backup. */
+            rev: number;
+            /**
+             * Format: date-time
+             * @description The stored envelope's savedAt.
+             */
+            savedAt: string;
+            /** @description Stored size in bytes. */
+            size: number;
+        };
+        BackupConflict: {
+            error: string;
+            /** @description The backup's actual meta, or null when none is stored. */
+            current: components["schemas"]["BackupMeta"] | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -534,6 +608,117 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ValidationProblem"];
                 };
+            };
+        };
+    };
+    getBackupMeta: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A backup exists. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupMeta"];
+                };
+            };
+            /** @description No backup stored yet, or this service does not offer backup. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The backup envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupEnvelope"];
+                };
+            };
+            /** @description No backup stored yet. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putBackup: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string;
+                "If-None-Match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BackupEnvelope"];
+            };
+        };
+        responses: {
+            /** @description Stored. The new revision. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupMeta"];
+                };
+            };
+            /** @description Not a backup envelope. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The named revision is not the current one. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupConflict"];
+                };
+            };
+            /** @description Larger than the service accepts. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Neither If-Match nor If-None-Match was sent. */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
