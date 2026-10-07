@@ -2,6 +2,7 @@
 // (src/index.ts) and private host repos, which pass their out-of-tree connectors in.
 
 import { serve } from '@hono/node-server';
+import { defaultBackupDir } from './backup/index.js';
 import { createApp } from './server.js';
 import type { CreateAppOptions } from './server.js';
 
@@ -16,5 +17,8 @@ export function startServer(options: StartServerOptions = {}): void {
 
   serve({ fetch: app.fetch, port: port ?? Number(process.env.PORT ?? 8787) }, (info) => {
     console.log(`[work-truck] sync service listening on http://localhost:${info.port}`);
+    if (appOptions.backup !== false) {
+      console.log(`[work-truck] app backups in ${appOptions.backup?.dir ?? defaultBackupDir()}`);
+    }
   });
 }

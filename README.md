@@ -30,6 +30,35 @@ error wrapper does the mapping.
 
 Wire types are generated from the app-owned OpenAPI spec — they are never hand-copied.
 
+## The app's backup (3 routes, optional)
+
+Separate from syncing. The app keeps its data in the browser's localStorage, which a
+"clear site data" wipes; work-truck holds an **opaque copy** on disk so the app can
+restore it. The app owns the data — this service never interprets it, and **backup
+never reaches a connector**: push, through the app's review modal, stays the only path
+to an external system. `src/backup/` imports neither the registry nor any connector,
+and a test holds that line.
+
+| Method + path | Headers | Returns |
+|---|---|---|
+| `GET /backup/meta` | — | `{ rev, savedAt, size }`, or 404 when none |
+| `GET /backup` | — | the stored envelope verbatim, `ETag: "<rev>"` |
+| `PUT /backup` | `If-Match: "<rev>"` (or `If-None-Match: *` first time), `Content-Type: application/json`, optional `Content-Encoding: deflate` | `{ rev, savedAt, size }`, or **409** `{ error, current }` on a stale rev |
+
+- **Storage:** `$WORK_TRUCK_DATA_DIR/backup/` (default `~/.work-truck/backup/`):
+  `current.json` is exactly what the app sent (readable, and importable through the
+  app's *Import JSON*), `meta.json` carries the revision, `history/` keeps the previous
+  20 copies plus the newest of each of the last 14 days. Every write is temp file +
+  fsync + rename, so a crash never leaves a torn file.
+- **Concurrency:** optimistic, by revision. Two tabs or two ports can't silently
+  overwrite each other — the stale one gets a 409 and the app asks the user.
+- **Security:** CORS only stops other sites *reading* responses, so these routes also
+  refuse a disallowed `Origin` outright and require `application/json` (which forces a
+  browser preflight). Only the envelope's outer shape is validated.
+- **Off switch:** `createApp({ backup: false })` / `startServer({ backup: false })`.
+  The routes then answer 404, so the app reports backup as unavailable rather than
+  mistaking the SPA fallback's `index.html` for a backup.
+
 ## Stack
 
 Node + TypeScript (ESM), [Hono](https://hono.dev) + `@hono/node-server`, `zod`,
@@ -63,6 +92,10 @@ Environment (`.env`):
 - `MOCK` — `1` (default) maps offline fixtures for live-fetch connectors; `0` uses
   the live backend. Does not affect **Acme**, which is the always-on in-process dev
   backend (no external system, no flag).
+- `WORK_TRUCK_DATA_DIR` — where the app's backup lives (default `~/.work-truck`; the
+  backup goes in its `backup/` folder). Logged at startup.
+- `WORK_TRUCK_BACKUP_MAX_MB` — largest accepted backup, compressed or inflated
+  (default `25`).
 
 ## Implementing a new connector
 
@@ -194,7 +227,7 @@ change needed. Start both dev servers and trigger **Sync** on a release.
 src/
   contract.generated.ts   # GENERATED from the app's openapi.yaml — do not edit
   contract.ts             # ergonomic aliases over the generated types
-  server.ts               # Hono app: the 5 routes + CORS + error wrapper; createApp({ connectors })
+  server.ts               # Hono app: the 5 routes + CORS + error wrapper; createApp({ connectors, backup })
   serve.ts                # startServer({ port, connectors }) — entrypoint for this repo AND private hosts
   index.ts                # entrypoint (startServer() with built-ins)
   sdk.ts                  # the public package surface (root export of `work-truck`)
@@ -214,6 +247,11 @@ src/
       mapping.ts          # pure: raw Acme <-> contract (status coercion both ways)
       mapping.test.ts     # mapping + push + createItem unit tests
       conformance.test.ts # describeConnectorContract('acme', AcmeConnector, ...)
+  backup/                 # the app's durable backup — opaque copy on disk, never touches a connector
+    index.ts              # enableBackup(): where backups live, size limit
+    store.ts              # BackupStore: atomic writes, revisions, history rotation
+    routes.ts             # GET/PUT /backup, origin + content-type guard
+    backup.test.ts        # store + routes, incl. the no-connector-call assertions
   lib/
     http.ts               # fetch + Basic-auth helper (HTTP connectors)
     exec.ts               # run a CLI + parse JSON stdout (CLI connectors)

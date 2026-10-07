@@ -50,5 +50,10 @@ export type PushResult = Schemas['PushResult'];
 export type PushItemError = Schemas['PushItemError'];
 export type CreateItemRequest = Schemas['CreateItemRequest'];
 
+/** Backup (optional): an opaque copy of the app's data, never forwarded to a connector. */
+export type BackupEnvelope = Schemas['BackupEnvelope'];
+export type BackupMeta = Schemas['BackupMeta'];
+export type BackupConflict = Schemas['BackupConflict'];
+
 /** Must match `info.version` in openapi.yaml — versions the wire contract with the app. */
-export const SYNC_CONTRACT_VERSION = '0.21.0';
+export const SYNC_CONTRACT_VERSION = '0.22.0';
