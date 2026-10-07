@@ -76,6 +76,8 @@ app derives behavior from the slot with **no catalog declaration at all**:
 | Build | `item.fields.build` / `workStream.fields.build` | patch-item marking, carried-in stream hiding, built-in Build facets (item + stream scope) |
 | URL | `item.fields.url` / `workStream.fields.url` | jump-to-source links |
 | Subject / description | `item.fields.subject` / `.description` | card + detail content |
+| Author | `item.fields.createdBy` | "Created by" readout on the item modal |
+| Created / modified | `item.fields.createdAt` / `.updatedAt` | "Created" / "Last modified" readouts |
 
 **Vocabulary attributes** are everything the app has *no* concept of (severity,
 track, component, …): declare a FieldSpec in the catalog, emit values through
@@ -89,6 +91,19 @@ Corollaries the conformance suite enforces:
   `status`, …) fails with a pointer to the right slot. If a backend field is
   genuinely unrelated (e.g. a CI build number), rename its key.
 - Never emit the same concept both ways.
+
+The three read-only history fields are connector-owned — the app never writes or pushes
+them, and the backend's value wins on every sync:
+
+- `createdBy` is a **display name**, not an account id. Resolve it inside the connector
+  (Acme looks the id up in its member roster); omit it when the backend records no
+  author or the author can't be resolved, rather than leaking an id the reader can't use.
+- `createdAt` / `updatedAt` are full ISO-8601 instants (`2026-07-30T14:03:22Z`), not bare
+  dates. Emit the backend's own stamps and never stamp at fetch time: the app treats a
+  moved `updatedAt` as evidence an item genuinely changed. A write you perform (a push)
+  is a real change, so it should move `updatedAt`.
+
+The conformance suite checks all three, and reserves their keys against vocabulary fields.
 
 One `build` nuance: the built-in Build facet only renders when it *partitions* the
 view, so set `build` **only** on carried-in/patch entities and leave it null on

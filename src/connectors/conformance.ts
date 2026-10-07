@@ -26,7 +26,7 @@ const CANONICAL_STATUSES = ['Not Started', 'In Progress', 'Under Review', 'Block
 // these keys — map the value to its canonical slot instead; if a backend field is
 // genuinely unrelated (e.g. a CI build number), rename its key. See CONNECTORS.md
 // "Canonical concepts vs vocabulary attributes".
-const CANONICAL_ITEM_FIELD_KEYS = new Set(['key', 'subject', 'description', 'url', 'status', 'statusNative', 'points', 'build', 'itemType', 'descriptionFormat']);
+const CANONICAL_ITEM_FIELD_KEYS = new Set(['key', 'subject', 'description', 'url', 'status', 'statusNative', 'points', 'build', 'itemType', 'descriptionFormat', 'createdAt', 'updatedAt', 'createdBy']);
 const CANONICAL_STREAM_FIELD_KEYS = new Set(['name', 'url', 'build']);
 
 /** True if `value`'s runtime type matches a FieldSpec's declared `kind` (or is null). */
@@ -240,6 +240,23 @@ export function describeConnectorContract(name: string, connector: Connector, op
         const release = await connector.fetchAndMap(config);
         for (const item of release.items) {
           expect(CANONICAL_STATUSES).toContain(item.fields.status);
+        }
+      });
+
+      it('createdAt / updatedAt (if present) are ISO instants, and createdBy (if present) is a display name', async () => {
+        const release = await connector.fetchAndMap(config);
+        for (const item of release.items) {
+          for (const k of ['createdAt', 'updatedAt'] as const) {
+            const v = item.fields[k];
+            if (v == null) continue;
+            expect(Number.isNaN(Date.parse(v)), `${k} "${v}" on ${item.externalId} must be a parseable ISO-8601 instant`).toBe(false);
+            // A bare date would pass Date.parse but loses the time the app displays.
+            expect(v, `${k} on ${item.externalId} must be a full instant, not a bare date`).toMatch(/T/);
+          }
+          const by = item.fields.createdBy;
+          if (by == null) continue;
+          expect(typeof by).toBe('string');
+          expect(by.trim(), `createdBy on ${item.externalId} must not be blank — omit it instead`).not.toBe('');
         }
       });
 

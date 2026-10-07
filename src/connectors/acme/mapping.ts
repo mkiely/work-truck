@@ -4,7 +4,7 @@
 
 import type { ContractStatus, MappedItem, MappedRelease } from '../../contract.js';
 import { filterAttributes } from '../../lib/attributes.js';
-import type { AcmeTicket, AcmeWarehouse } from './fixtures.js';
+import type { AcmeMember, AcmeTicket, AcmeWarehouse } from './fixtures.js';
 import { ACME_ITEM_TYPES, ACME_STATUSES, ACME_STREAM_FIELDS, acmeTypeLabel } from './itemTypes.js';
 
 /**
@@ -46,7 +46,10 @@ function toDateOnly(value: string): string {
 }
 
 /** Map one raw ticket to a MappedItem. Shared by sync (fetchAndMap) and createItem. */
-export function mapTicket(t: AcmeTicket): MappedItem {
+export function mapTicket(t: AcmeTicket, members: readonly AcmeMember[] = []): MappedItem {
+  // The contract wants a display name, not an account id. An author the roster no
+  // longer holds is omitted rather than leaked as a raw id the reader can't use.
+  const author = t.createdById ? members.find((m) => m.id === t.createdById)?.name : undefined;
   // Vocabulary values pass through the boundary filter: only catalog-declared
   // attribute fields, coerced to their declared kind.
   const attributes = filterAttributes(
@@ -71,6 +74,9 @@ export function mapTicket(t: AcmeTicket): MappedItem {
       points: typeof t.estimate === 'number' ? t.estimate : 0,
       itemType: { id: t.typeId, label: acmeTypeLabel(t.typeId) },
       ...(t.build != null && { build: t.build }),
+      ...(author && { createdBy: author }),
+      ...(t.createdAt && { createdAt: t.createdAt }),
+      ...(t.updatedAt && { updatedAt: t.updatedAt }),
     },
   };
 }
@@ -103,7 +109,7 @@ export function mapAcme(raw: AcmeWarehouse): MappedRelease {
     fields: { name: c.name, startISO: toDateOnly(c.start), endISO: toDateOnly(c.end) },
   }));
 
-  const items = raw.tickets.map(mapTicket);
+  const items = raw.tickets.map((t) => mapTicket(t, raw.members));
 
   return { team, workStreams, sprints, items };
 }

@@ -59,6 +59,15 @@ export interface AcmeTicket {
   /** Build this ticket was carried in from (-> MappedItem.fields.build). Dotted
    *  point builds ('264.1') exercise the consumer's prefix-grouped build facet. */
   build?: string;
+  /** Member who opened the ticket (-> MappedItem.fields.createdBy, as that member's
+   *  display name). Absent on tickets the backend has no author for — imported or
+   *  created through the contract, which carries no identity. */
+  createdById?: string;
+  /** When the ticket was opened / last changed, as ISO-8601 instants
+   *  (-> fields.createdAt / updatedAt). Acme's own stamps: the push path moves
+   *  `updatedAt`, and nothing here is ever written at fetch time. */
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /** The entire Acme backend, as one document. This is what the warehouse persists. */
@@ -115,7 +124,23 @@ export function seedWarehouse(): AcmeWarehouse {
       { id: 'ACME-121', typeId: 'acme_story', title: 'Proration engine', body: '', state: 'todo', estimate: 5, moduleId: 'MOD-BILL', cycleId: 'CYC-3', assigneeId: 'USR-MARCO' },
       // Unscheduled (no cycle) -> lands in the backlog. Unassigned.
       { id: 'ACME-122', typeId: 'acme_bug', title: 'Legacy data backfill drops rows', body: 'Backfill loses rows when the source page boundary splits a record.', state: 'todo', estimate: 3, moduleId: 'MOD-BILL', cycleId: null, assigneeId: null, severity: 'high' },
-    ],
+    ].map(withHistory),
     seq: 0,
+  };
+}
+
+/** Deterministic history for the seed tickets: an author rotating through the team
+ *  (every fifth ticket has none, so the 'unknown author' reading is exercised) and
+ *  instants a few days apart. Applied after the literals rather than written into
+ *  each, so adding a ticket doesn't mean inventing a timestamp for it. */
+function withHistory(t: AcmeTicket, i: number): AcmeTicket {
+  const authors = ['USR-ADA', 'USR-MARCO', 'USR-WEI', 'USR-DEVI'];
+  const created = Date.UTC(2026, 3, 1 + (i % 9), 9 + (i % 7), (i * 11) % 60);
+  const updated = created + ((1 + (i % 6)) * 24 + (i % 5)) * 3_600_000;
+  return {
+    ...t,
+    ...(i % 5 !== 4 && { createdById: authors[i % authors.length] }),
+    createdAt: new Date(created).toISOString(),
+    updatedAt: new Date(updated).toISOString(),
   };
 }
