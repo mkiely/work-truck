@@ -61,7 +61,7 @@ and a test holds that line.
 
 ## Stack
 
-Node + TypeScript (ESM), [Hono](https://hono.dev) + `@hono/node-server`, `zod`,
+Node + TypeScript (ESM), [Hono](https://hono.dev) + `@hono/node-server`,
 `tsx` (dev/run), `vitest` (tests).
 
 ## Setup
