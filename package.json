@@ -48,7 +48,7 @@
   "devDependencies": {
     "@types/node": "^22.10.2",
     "openapi-typescript": "^7.4.4",
-    "release-tracker": "https://github.com/mkiely/release-tracker/releases/download/v0.3.25/release-tracker-0.3.25.tgz",
+    "release-tracker": "https://github.com/mkiely/release-tracker/releases/download/v0.3.27/release-tracker-0.3.27.tgz",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^4.1.0"
